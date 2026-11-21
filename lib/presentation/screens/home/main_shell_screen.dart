@@ -21,7 +21,7 @@ class MainShellScreen extends StatefulWidget {
 
 class _MainShellScreenState extends State<MainShellScreen> {
   int _selectedIndex = 0;
-  late Future<List<HolidayModel>> _holidaysFuture;
+  Future<List<HolidayModel>>? _holidaysFuture;
   final HolidayApiService _holidayApiService = HolidayApiService();
 
   static const _titles = [
@@ -31,12 +31,9 @@ class _MainShellScreenState extends State<MainShellScreen> {
     'Thống kê & Tài khoản',
   ];
 
-  @override
-  void initState() {
-    super.initState();
-    _holidaysFuture = _holidayApiService.fetchVietnamHolidays(
-      DateTime.now().year,
-    );
+  Future<List<HolidayModel>> _getHolidaysFuture() {
+    return _holidaysFuture ??=
+        _holidayApiService.fetchVietnamHolidays(DateTime.now().year);
   }
 
   @override
@@ -165,7 +162,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
           child: Padding(
             padding: const EdgeInsets.only(top: 12),
             child: FutureBuilder<List<HolidayModel>>(
-              future: _holidaysFuture,
+              future: _getHolidaysFuture(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Padding(

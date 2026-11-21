@@ -12,8 +12,11 @@ void main() {
     expect(find.text('Smart Todo'), findsOneWidget);
     expect(find.text('Đăng nhập'), findsWidgets);
 
-    // Chuyển vào chế độ xem trước Offline để kiểm tra AppBar & NavigationBar
-    await tester.tap(find.text('Xem trước Offline'));
+    // Cuộn tới nút và chuyển vào chế độ xem trước Offline để kiểm tra AppBar & NavigationBar
+    final previewBtn = find.text('Xem trước Offline');
+    await tester.ensureVisible(previewBtn);
+    await tester.pumpAndSettle();
+    await tester.tap(previewBtn);
     await tester.pumpAndSettle();
 
     expect(find.text('Tab Công việc (Todo)'), findsOneWidget);
