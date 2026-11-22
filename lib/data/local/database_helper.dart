@@ -13,7 +13,7 @@ class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._();
 
   static const String _dbName = 'smart_todo.db';
-  static const int _dbVersion = 1;
+  static const int _dbVersion = 2;
 
   static const String tableTasks = 'tasks';
   static const String tableNotes = 'notes';
@@ -34,7 +34,19 @@ class DatabaseHelper {
       dbPath,
       version: _dbVersion,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute(
+        'ALTER TABLE $tableTasks ADD COLUMN repeat_interval_seconds INTEGER DEFAULT 60',
+      );
+      await db.execute(
+        'ALTER TABLE $tableTasks ADD COLUMN repeat_count INTEGER DEFAULT 1',
+      );
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -48,7 +60,9 @@ class DatabaseHelper {
         priority INTEGER NOT NULL,
         is_completed INTEGER NOT NULL,
         due_date INTEGER,
-        remind_before_minutes INTEGER DEFAULT 30,
+        remind_before_minutes INTEGER DEFAULT 10,
+        repeat_interval_seconds INTEGER DEFAULT 60,
+        repeat_count INTEGER DEFAULT 1,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
         is_deleted INTEGER DEFAULT 0,

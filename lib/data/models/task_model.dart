@@ -1,4 +1,4 @@
-/// Model Công việc (Todo) hỗ trợ lưu trữ SQLite cục bộ và đồng bộ Firebase Realtime DB.
+/// Model Công việc (Todo) hỗ trợ lưu trữ SQLite cục bộ, nhắc lại nhiều lần & đồng bộ Firebase.
 class TaskModel {
   final String id;
   final String userId;
@@ -8,7 +8,9 @@ class TaskModel {
   final int priority; // 0: Low, 1: Medium, 2: High
   final bool isCompleted;
   final int? dueDate; // epoch milliseconds
-  final int remindBeforeMinutes;
+  final int remindBeforeMinutes; // 0 = không nhắc
+  final int repeatIntervalSeconds; // khoảng thời gian giữa các lần nhắc lại (30s, 60s, ...)
+  final int repeatCount; // tổng số lần nhắc (1, 2, 3, 4, ...)
   final int createdAt;
   final int updatedAt;
   final bool isDeleted;
@@ -23,7 +25,9 @@ class TaskModel {
     this.priority = 1,
     this.isCompleted = false,
     this.dueDate,
-    this.remindBeforeMinutes = 30,
+    this.remindBeforeMinutes = 10,
+    this.repeatIntervalSeconds = 60,
+    this.repeatCount = 1,
     required this.createdAt,
     required this.updatedAt,
     this.isDeleted = false,
@@ -41,6 +45,8 @@ class TaskModel {
     int? dueDate,
     bool clearDueDate = false,
     int? remindBeforeMinutes,
+    int? repeatIntervalSeconds,
+    int? repeatCount,
     int? createdAt,
     int? updatedAt,
     bool? isDeleted,
@@ -56,6 +62,9 @@ class TaskModel {
       isCompleted: isCompleted ?? this.isCompleted,
       dueDate: clearDueDate ? null : (dueDate ?? this.dueDate),
       remindBeforeMinutes: remindBeforeMinutes ?? this.remindBeforeMinutes,
+      repeatIntervalSeconds:
+          repeatIntervalSeconds ?? this.repeatIntervalSeconds,
+      repeatCount: repeatCount ?? this.repeatCount,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       isDeleted: isDeleted ?? this.isDeleted,
@@ -75,6 +84,8 @@ class TaskModel {
       'is_completed': isCompleted ? 1 : 0,
       'due_date': dueDate,
       'remind_before_minutes': remindBeforeMinutes,
+      'repeat_interval_seconds': repeatIntervalSeconds,
+      'repeat_count': repeatCount,
       'created_at': createdAt,
       'updated_at': updatedAt,
       'is_deleted': isDeleted ? 1 : 0,
@@ -93,7 +104,9 @@ class TaskModel {
       priority: (map['priority'] as int?) ?? 1,
       isCompleted: (map['is_completed'] as int? ?? 0) == 1,
       dueDate: map['due_date'] as int?,
-      remindBeforeMinutes: (map['remind_before_minutes'] as int?) ?? 30,
+      remindBeforeMinutes: (map['remind_before_minutes'] as int?) ?? 10,
+      repeatIntervalSeconds: (map['repeat_interval_seconds'] as int?) ?? 60,
+      repeatCount: (map['repeat_count'] as int?) ?? 1,
       createdAt: map['created_at'] as int,
       updatedAt: map['updated_at'] as int,
       isDeleted: (map['is_deleted'] as int? ?? 0) == 1,
@@ -113,6 +126,8 @@ class TaskModel {
       'isCompleted': isCompleted,
       'dueDate': dueDate,
       'remindBeforeMinutes': remindBeforeMinutes,
+      'repeatIntervalSeconds': repeatIntervalSeconds,
+      'repeatCount': repeatCount,
       'createdAt': createdAt,
       'updatedAt': updatedAt,
       'isDeleted': isDeleted,
@@ -131,7 +146,10 @@ class TaskModel {
       priority: (json['priority'] as num?)?.toInt() ?? 1,
       isCompleted: (json['isCompleted'] as bool?) ?? false,
       dueDate: (json['dueDate'] as num?)?.toInt(),
-      remindBeforeMinutes: (json['remindBeforeMinutes'] as num?)?.toInt() ?? 30,
+      remindBeforeMinutes: (json['remindBeforeMinutes'] as num?)?.toInt() ?? 10,
+      repeatIntervalSeconds:
+          (json['repeatIntervalSeconds'] as num?)?.toInt() ?? 60,
+      repeatCount: (json['repeatCount'] as num?)?.toInt() ?? 1,
       createdAt: (json['createdAt'] as num?)?.toInt() ?? now,
       updatedAt: (json['updatedAt'] as num?)?.toInt() ?? now,
       isDeleted: (json['isDeleted'] as bool?) ?? false,
