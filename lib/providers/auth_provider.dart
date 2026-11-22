@@ -4,8 +4,7 @@ import 'package:flutter/foundation.dart';
 import '../data/remote/firebase_auth_service.dart';
 import '../data/remote/firebase_sync_service.dart';
 
-/// Quản lý trạng thái xác thực người dùng và hỗ trợ chế độ xem trước cục bộ
-/// khi chưa hoàn tất bước setup Firebase bên ngoài.
+/// Quản lý trạng thái xác thực người dùng (Đăng nhập, Đăng ký, Quên/Đổi mật khẩu).
 class AuthProvider extends ChangeNotifier {
   final FirebaseAuthService _authService;
   final FirebaseSyncService _syncService;
@@ -18,7 +17,7 @@ class AuthProvider extends ChangeNotifier {
     FirebaseAuthService? authService,
     FirebaseSyncService? syncService,
   })  : _authService = authService ?? FirebaseAuthService(),
-        _syncService = syncService ?? FirebaseSyncService();
+        _syncService = syncService ?? FirebaseSyncService.instance;
 
   bool get isFirebaseReady => _authService.isFirebaseReady;
   bool get isLoading => _isLoading;
@@ -28,7 +27,7 @@ class AuthProvider extends ChangeNotifier {
   User? get currentUser => _authService.currentUser;
   Stream<User?> get authStateChanges => _authService.authStateChanges;
 
-  /// ID người dùng hiện tại dùng để truy vấn SQLite cục bộ.
+  /// ID người dùng hiện tại dùng để truy vấn SQLite & Firebase Realtime DB.
   String get effectiveUserId => currentUser?.uid ?? 'local_guest_user';
 
   String get displayName {
@@ -108,6 +107,32 @@ class AuthProvider extends ChangeNotifier {
       return false;
     } finally {
       _setLoading(false);
+    }
+  }
+
+  /// Gửi email đặt lại mật khẩu. Trả về null nếu thành công, hoặc thông báo lỗi.
+  Future<String?> sendPasswordResetEmail(String email) async {
+    try {
+      await _authService.sendPasswordResetEmail(email);
+      return null;
+    } catch (e) {
+      return e.toString().replaceFirst('Exception: ', '');
+    }
+  }
+
+  /// Đổi mật khẩu tài khoản hiện tại. Trả về null nếu thành công, hoặc thông báo lỗi.
+  Future<String?> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      await _authService.changePassword(
+        currentPassword: currentPassword,
+        newPassword: newPassword,
+      );
+      return null;
+    } catch (e) {
+      return e.toString().replaceFirst('Exception: ', '');
     }
   }
 

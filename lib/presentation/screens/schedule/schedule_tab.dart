@@ -9,6 +9,7 @@ import '../../../data/models/holiday_model.dart';
 import '../../../data/models/schedule_model.dart';
 import '../../../data/remote/holiday_api_service.dart';
 import '../../../providers/schedule_provider.dart';
+import '../../widgets/share_schedule_dialog.dart';
 
 /// Tab Thời khóa biểu: Thanh 7 ngày T2->CN gọn đều trên 1 hàng + Ngày lễ VN (Nager.Date FutureBuilder).
 class ScheduleTab extends StatefulWidget {
@@ -154,6 +155,26 @@ class _ScheduleTabState extends State<ScheduleTab> {
                               style: shadTheme.textTheme.small.copyWith(
                                 fontWeight: FontWeight.w600,
                               ),
+                            ),
+                          ),
+                          ShadButton.ghost(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            onPressed: () {
+                              showShadDialog<void>(
+                                context: context,
+                                builder: (_) => const ShareScheduleDialog(),
+                              );
+                            },
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(LucideIcons.share2, size: 14),
+                                SizedBox(width: 4),
+                                Text('Chia sẻ'),
+                              ],
                             ),
                           ),
                           Icon(

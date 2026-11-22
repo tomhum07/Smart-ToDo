@@ -1,7 +1,12 @@
+import 'dart:async';
+
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../../data/remote/firebase_sync_service.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/note_provider.dart';
 import '../../../providers/schedule_provider.dart';
@@ -10,11 +15,10 @@ import '../../../providers/theme_provider.dart';
 import '../dashboard/stats_tab.dart';
 import '../notes/notes_tab.dart';
 import '../profile/profile_tab.dart';
-import '../schedule/schedule_tab.dart';
-import '../tasks/tasks_tab.dart';
+import '../schedule/schedule_tasks_tab.dart';
 
-/// Khung giao diện chính gồm 5 Tab: Công việc, Ghi chú, Lịch trình, Thống kê, Hồ sơ.
-/// Tự động thích ứng xoay dọc (NavigationBar) / xoay ngang (NavigationRail) qua OrientationBuilder.
+/// Khung giao diện chính gồm 4 Tab: Lịch & Việc (hợp nhất Cha->Con), Ghi chú, Thống kê, Hồ sơ.
+/// Tự động kích hoạt đồng bộ 2 chiều Firebase Realtime DB & đồng bộ lại khi có mạng.
 class MainShellScreen extends StatefulWidget {
   const MainShellScreen({super.key});
 
@@ -25,11 +29,12 @@ class MainShellScreen extends StatefulWidget {
 class _MainShellScreenState extends State<MainShellScreen> {
   int _selectedIndex = 0;
   String? _loadedForUserId;
+  StreamSubscription<DatabaseEvent>? _realtimeSyncSub;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
 
   static const _titles = [
-    'Công việc',
+    'Lịch & Công việc',
     'Ghi chú',
-    'Lịch trình',
     'Thống kê',
     'Hồ sơ',
   ];
@@ -37,16 +42,75 @@ class _MainShellScreenState extends State<MainShellScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final userId = context.read<AuthProvider>().effectiveUserId;
+    final auth = context.read<AuthProvider>();
+    final userId = auth.effectiveUserId;
+
     if (_loadedForUserId != userId) {
       _loadedForUserId = userId;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        context.read<TaskProvider>().loadTasks(userId);
-        context.read<NoteProvider>().loadNotes(userId);
-        context.read<ScheduleProvider>().loadSchedules(userId);
+        _initializeUserDataAndSync(userId, auth.isFirebaseReady);
       });
     }
+  }
+
+  Future<void> _initializeUserDataAndSync(
+    String userId,
+    bool isFirebaseReady,
+  ) async {
+    final taskProvider = context.read<TaskProvider>();
+    final noteProvider = context.read<NoteProvider>();
+    final scheduleProvider = context.read<ScheduleProvider>();
+
+    await Future.wait([
+      taskProvider.loadTasks(userId, force: true),
+      noteProvider.loadNotes(userId, force: true),
+      scheduleProvider.loadSchedules(userId, force: true),
+    ]);
+
+    await _realtimeSyncSub?.cancel();
+    await _connectivitySub?.cancel();
+
+    if (!isFirebaseReady || userId == 'local_guest_user') return;
+
+    final changed = await FirebaseSyncService.instance.syncAll(userId);
+    if (changed && mounted) {
+      await _reloadAllProviders(userId);
+    }
+
+    _realtimeSyncSub = FirebaseSyncService.instance.listenRealtimeUpdates(
+      userId,
+      () async {
+        if (!mounted) return;
+        await _reloadAllProviders(userId);
+      },
+    );
+
+    _connectivitySub = Connectivity().onConnectivityChanged.listen((results) {
+      final hasNetwork = results.any((r) => r != ConnectivityResult.none);
+      if (hasNetwork && mounted) {
+        FirebaseSyncService.instance.syncAll(userId).then((didChange) {
+          if (didChange && mounted) {
+            _reloadAllProviders(userId);
+          }
+        });
+      }
+    });
+  }
+
+  Future<void> _reloadAllProviders(String userId) async {
+    await Future.wait([
+      context.read<TaskProvider>().loadTasks(userId, force: true),
+      context.read<NoteProvider>().loadNotes(userId, force: true),
+      context.read<ScheduleProvider>().loadSchedules(userId, force: true),
+    ]);
+  }
+
+  @override
+  void dispose() {
+    _realtimeSyncSub?.cancel();
+    _connectivitySub?.cancel();
+    super.dispose();
   }
 
   @override
@@ -87,16 +151,12 @@ class _MainShellScreenState extends State<MainShellScreen> {
                       labelType: NavigationRailLabelType.all,
                       destinations: const [
                         NavigationRailDestination(
-                          icon: Icon(LucideIcons.listTodo),
-                          label: Text('Công việc'),
+                          icon: Icon(LucideIcons.calendarCheck2),
+                          label: Text('Lịch & Việc'),
                         ),
                         NavigationRailDestination(
                           icon: Icon(LucideIcons.stickyNote),
                           label: Text('Ghi chú'),
-                        ),
-                        NavigationRailDestination(
-                          icon: Icon(LucideIcons.calendarDays),
-                          label: Text('Lịch trình'),
                         ),
                         NavigationRailDestination(
                           icon: Icon(LucideIcons.chartColumn),
@@ -121,16 +181,12 @@ class _MainShellScreenState extends State<MainShellScreen> {
                       setState(() => _selectedIndex = i),
                   destinations: const [
                     NavigationDestination(
-                      icon: Icon(LucideIcons.listTodo),
-                      label: 'Công việc',
+                      icon: Icon(LucideIcons.calendarCheck2),
+                      label: 'Lịch & Việc',
                     ),
                     NavigationDestination(
                       icon: Icon(LucideIcons.stickyNote),
                       label: 'Ghi chú',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(LucideIcons.calendarDays),
-                      label: 'Lịch trình',
                     ),
                     NavigationDestination(
                       icon: Icon(LucideIcons.chartColumn),
@@ -150,12 +206,10 @@ class _MainShellScreenState extends State<MainShellScreen> {
   Widget _buildCurrentTab() {
     switch (_selectedIndex) {
       case 0:
-        return const TasksTab();
+        return const ScheduleTasksTab();
       case 1:
         return const NotesTab();
       case 2:
-        return const ScheduleTab();
-      case 3:
         return const StatsTab();
       default:
         return const ProfileTab();

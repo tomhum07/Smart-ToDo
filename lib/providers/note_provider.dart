@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../core/constants/api_constants.dart';
 import '../data/local/database_helper.dart';
 import '../data/models/note_model.dart';
+import '../data/remote/firebase_sync_service.dart';
 import '../data/remote/supabase_storage_service.dart';
 
 /// Quản lý trạng thái, tìm kiếm, lọc và CRUD Ghi chú đa phương tiện (hỗ trợ nhiều ảnh).
@@ -154,10 +155,19 @@ class NoteProvider extends ChangeNotifier {
 
     await _db.upsertNote(note);
     await loadNotes(userId, force: true);
+    _syncInBackground(userId);
   }
 
   Future<void> deleteNote(NoteModel note) async {
     await _db.softDeleteNote(note.id);
     await loadNotes(note.userId, force: true);
+    _syncInBackground(note.userId);
+  }
+
+  void _syncInBackground(String userId) {
+    FirebaseSyncService.instance.pushUnsyncedData(userId).catchError((Object e) {
+      debugPrint('Đồng bộ ngầm Note tạm hoãn (offline): $e');
+      return 0;
+    });
   }
 }

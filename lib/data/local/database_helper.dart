@@ -13,7 +13,7 @@ class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._();
 
   static const String _dbName = 'smart_todo.db';
-  static const int _dbVersion = 2;
+  static const int _dbVersion = 3;
 
   static const String tableTasks = 'tasks';
   static const String tableNotes = 'notes';
@@ -47,6 +47,14 @@ class DatabaseHelper {
         'ALTER TABLE $tableTasks ADD COLUMN repeat_count INTEGER DEFAULT 1',
       );
     }
+    if (oldVersion < 3) {
+      await db.execute(
+        'ALTER TABLE $tableTasks ADD COLUMN schedule_id TEXT',
+      );
+      await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_tasks_schedule ON $tableTasks (schedule_id, is_deleted)',
+      );
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -54,6 +62,7 @@ class DatabaseHelper {
       CREATE TABLE $tableTasks (
         id TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
+        schedule_id TEXT,
         title TEXT NOT NULL,
         description TEXT,
         category TEXT NOT NULL,
@@ -159,6 +168,28 @@ class DatabaseHelper {
     return rows.map(TaskModel.fromMap).toList();
   }
 
+  Future<TaskModel?> getTaskById(String taskId) async {
+    final db = await database;
+    final rows = await db.query(
+      tableTasks,
+      where: 'id = ?',
+      whereArgs: [taskId],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return TaskModel.fromMap(rows.first);
+  }
+
+  Future<void> markTaskSynced(String taskId) async {
+    final db = await database;
+    await db.update(
+      tableTasks,
+      {'is_synced': 1},
+      where: 'id = ?',
+      whereArgs: [taskId],
+    );
+  }
+
   // ==================== CRUD NOTES ====================
 
   Future<void> upsertNote(NoteModel note) async {
@@ -200,6 +231,28 @@ class DatabaseHelper {
       whereArgs: [userId],
     );
     return rows.map(NoteModel.fromMap).toList();
+  }
+
+  Future<NoteModel?> getNoteById(String noteId) async {
+    final db = await database;
+    final rows = await db.query(
+      tableNotes,
+      where: 'id = ?',
+      whereArgs: [noteId],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return NoteModel.fromMap(rows.first);
+  }
+
+  Future<void> markNoteSynced(String noteId) async {
+    final db = await database;
+    await db.update(
+      tableNotes,
+      {'is_synced': 1},
+      where: 'id = ?',
+      whereArgs: [noteId],
+    );
   }
 
   // ==================== CRUD SCHEDULES ====================
@@ -251,6 +304,28 @@ class DatabaseHelper {
       whereArgs: [userId],
     );
     return rows.map(ScheduleModel.fromMap).toList();
+  }
+
+  Future<ScheduleModel?> getScheduleById(String scheduleId) async {
+    final db = await database;
+    final rows = await db.query(
+      tableSchedules,
+      where: 'id = ?',
+      whereArgs: [scheduleId],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return ScheduleModel.fromMap(rows.first);
+  }
+
+  Future<void> markScheduleSynced(String scheduleId) async {
+    final db = await database;
+    await db.update(
+      tableSchedules,
+      {'is_synced': 1},
+      where: 'id = ?',
+      whereArgs: [scheduleId],
+    );
   }
 
   /// Kiểm tra sức khỏe CSDL cục bộ cho Smoke Test Phase 1.

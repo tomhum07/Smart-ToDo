@@ -78,18 +78,8 @@ class ProfileTab extends StatelessWidget {
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(LucideIcons.keyRound, size: 19),
                     title: const Text('Đổi mật khẩu'),
-                    trailing: const ShadBadge.secondary(
-                      child: Text('Coming soon'),
-                    ),
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Tính năng Đổi mật khẩu đang được phát triển (Coming soon).',
-                          ),
-                        ),
-                      );
-                    },
+                    trailing: const Icon(LucideIcons.chevronRight, size: 18),
+                    onTap: () => _showChangePasswordDialog(context),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -249,6 +239,139 @@ class ProfileTab extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _showChangePasswordDialog(BuildContext context) async {
+    final currentCtrl = TextEditingController();
+    final newCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+    String? dialogError;
+    var isSaving = false;
+
+    await showShadDialog<void>(
+      context: context,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return ShadDialog(
+              title: const Text('Đổi mật khẩu'),
+              description: const Text(
+                'Nhập mật khẩu hiện tại và mật khẩu mới (tối thiểu 6 ký tự).',
+              ),
+              actions: [
+                ShadButton.outline(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Hủy'),
+                ),
+                ShadButton(
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          final currentPass = currentCtrl.text;
+                          final newPass = newCtrl.text;
+                          final confirmPass = confirmCtrl.text;
+
+                          if (currentPass.isEmpty) {
+                            setDialogState(
+                              () => dialogError =
+                                  'Vui lòng nhập mật khẩu hiện tại.',
+                            );
+                            return;
+                          }
+                          if (newPass.length < 6) {
+                            setDialogState(
+                              () => dialogError =
+                                  'Mật khẩu mới cần ít nhất 6 ký tự.',
+                            );
+                            return;
+                          }
+                          if (newPass != confirmPass) {
+                            setDialogState(
+                              () => dialogError =
+                                  'Mật khẩu xác nhận không khớp.',
+                            );
+                            return;
+                          }
+
+                          setDialogState(() {
+                            isSaving = true;
+                            dialogError = null;
+                          });
+
+                          final error = await context
+                              .read<AuthProvider>()
+                              .changePassword(
+                                currentPassword: currentPass,
+                                newPassword: newPass,
+                              );
+                          if (!ctx.mounted) return;
+                          if (error != null) {
+                            setDialogState(() {
+                              isSaving = false;
+                              dialogError = error;
+                            });
+                            return;
+                          }
+                          Navigator.pop(ctx);
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Đổi mật khẩu thành công!'),
+                            ),
+                          );
+                        },
+                  child: isSaving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Cập nhật'),
+                ),
+              ],
+              child: Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ShadInput(
+                      controller: currentCtrl,
+                      placeholder: const Text('Mật khẩu hiện tại'),
+                      obscureText: true,
+                    ),
+                    const SizedBox(height: 10),
+                    ShadInput(
+                      controller: newCtrl,
+                      placeholder: const Text('Mật khẩu mới (≥ 6 ký tự)'),
+                      obscureText: true,
+                    ),
+                    const SizedBox(height: 10),
+                    ShadInput(
+                      controller: confirmCtrl,
+                      placeholder: const Text('Xác nhận mật khẩu mới'),
+                      obscureText: true,
+                    ),
+                    if (dialogError != null) ...[
+                      const SizedBox(height: 10),
+                      ShadAlert.destructive(
+                        icon: const Icon(LucideIcons.circleAlert),
+                        title: const Text('Đổi mật khẩu thất bại'),
+                        description: Text(dialogError!),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    currentCtrl.dispose();
+    newCtrl.dispose();
+    confirmCtrl.dispose();
   }
 }
 

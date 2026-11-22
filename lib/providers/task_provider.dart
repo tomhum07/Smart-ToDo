@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 
 import '../data/local/database_helper.dart';
 import '../data/models/task_model.dart';
+import '../data/remote/firebase_sync_service.dart';
 import '../data/services/notification_service.dart';
 
 enum TaskStatusFilter { all, active, completed }
@@ -162,8 +163,38 @@ class TaskProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Danh sách công việc nhỏ thuộc 1 Mục lớn (Schedule) cụ thể.
+  List<TaskModel> tasksForSchedule(
+    String scheduleId, {
+    bool applyFilters = false,
+  }) {
+    final source = applyFilters ? filteredTasks : _sortedAllTasks();
+    return source.where((t) => t.scheduleId == scheduleId).toList();
+  }
+
+  /// Danh sách công việc lẻ (không thuộc Mục lớn nào — mục "Việc khác / Tự do").
+  List<TaskModel> get standaloneFilteredTasks =>
+      filteredTasks.where((t) => t.scheduleId == null).toList();
+
+  List<TaskModel> _sortedAllTasks() {
+    final list = List<TaskModel>.from(_tasks);
+    list.sort((a, b) {
+      if (a.isCompleted != b.isCompleted) return a.isCompleted ? 1 : -1;
+      final cmp = b.priority.compareTo(a.priority);
+      if (cmp != 0) return cmp;
+      if (a.dueDate != null && b.dueDate != null) {
+        return a.dueDate!.compareTo(b.dueDate!);
+      }
+      if (a.dueDate != null) return -1;
+      if (b.dueDate != null) return 1;
+      return b.updatedAt.compareTo(a.updatedAt);
+    });
+    return list;
+  }
+
   Future<void> addTask({
     required String userId,
+    String? scheduleId,
     required String title,
     String description = '',
     required String category,
@@ -177,6 +208,7 @@ class TaskProvider extends ChangeNotifier {
     final task = TaskModel(
       id: _uuid.v4(),
       userId: userId,
+      scheduleId: scheduleId,
       title: title.trim(),
       description: description.trim(),
       category: category,
@@ -195,6 +227,7 @@ class TaskProvider extends ChangeNotifier {
     await _db.upsertTask(task);
     await _notifications.scheduleTaskReminder(task);
     await loadTasks(userId, force: true);
+    _syncInBackground(userId);
   }
 
   Future<void> updateTask(TaskModel updated) async {
@@ -205,6 +238,7 @@ class TaskProvider extends ChangeNotifier {
     await _db.upsertTask(saved);
     await _notifications.scheduleTaskReminder(saved);
     await loadTasks(saved.userId, force: true);
+    _syncInBackground(saved.userId);
   }
 
   Future<void> toggleTaskCompletion(TaskModel task) async {
@@ -220,11 +254,36 @@ class TaskProvider extends ChangeNotifier {
       await _notifications.scheduleTaskReminder(updated);
     }
     await loadTasks(updated.userId, force: true);
+    _syncInBackground(updated.userId);
   }
 
   Future<void> deleteTask(TaskModel task) async {
     await _db.softDeleteTask(task.id);
     await _notifications.cancelTaskReminder(task.id);
     await loadTasks(task.userId, force: true);
+    _syncInBackground(task.userId);
+  }
+
+  /// Khi xóa 1 Mục lớn (Schedule), tự động hủy nhắc & xóa mềm toàn bộ công việc con của nó.
+  Future<void> deleteTasksBySchedule({
+    required String userId,
+    required String scheduleId,
+  }) async {
+    final children = _tasks.where((t) => t.scheduleId == scheduleId).toList();
+    for (final child in children) {
+      await _db.softDeleteTask(child.id);
+      await _notifications.cancelTaskReminder(child.id);
+    }
+    if (children.isNotEmpty) {
+      await loadTasks(userId, force: true);
+      _syncInBackground(userId);
+    }
+  }
+
+  void _syncInBackground(String userId) {
+    FirebaseSyncService.instance.pushUnsyncedData(userId).catchError((Object e) {
+      debugPrint('Đồng bộ ngầm Task tạm hoãn (offline): $e');
+      return 0;
+    });
   }
 }

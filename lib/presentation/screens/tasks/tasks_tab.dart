@@ -7,6 +7,7 @@ import '../../../core/routes/app_routes.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../data/models/task_model.dart';
 import '../../../providers/task_provider.dart';
+import '../../widgets/deadline_alert_banner.dart';
 import '../../widgets/filter_bar_widget.dart';
 
 /// Tab Công việc (Todo): Thanh lọc siêu gọn 1 hàng + mặc định ưu tiên Cao->Thấp + xám mờ việc đã xong.
@@ -75,6 +76,7 @@ class _TasksTabState extends State<TasksTab> {
     return Scaffold(
       body: Column(
         children: [
+          const DeadlineAlertBanner(),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
             child: FilterBarWidget(

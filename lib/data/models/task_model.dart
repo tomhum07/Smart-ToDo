@@ -1,7 +1,8 @@
-/// Model Công việc (Todo) hỗ trợ lưu trữ SQLite cục bộ, nhắc lại nhiều lần & đồng bộ Firebase.
+/// Model Công việc (Todo) có thể gắn vào 1 Mục lớn (scheduleId) hoặc đứng độc lập (Việc khác).
 class TaskModel {
   final String id;
   final String userId;
+  final String? scheduleId; // Khóa ngoại tới schedules.id (null = Việc khác / Tự do)
   final String title;
   final String description;
   final String category;
@@ -9,8 +10,8 @@ class TaskModel {
   final bool isCompleted;
   final int? dueDate; // epoch milliseconds
   final int remindBeforeMinutes; // 0 = không nhắc
-  final int repeatIntervalSeconds; // khoảng thời gian giữa các lần nhắc lại (30s, 60s, ...)
-  final int repeatCount; // tổng số lần nhắc (1, 2, 3, 4, ...)
+  final int repeatIntervalSeconds; // khoảng thời gian nhắc lại (30s, 60s, ...)
+  final int repeatCount; // tổng số lần nhắc (1, 2, 3, 4, 5)
   final int createdAt;
   final int updatedAt;
   final bool isDeleted;
@@ -19,6 +20,7 @@ class TaskModel {
   const TaskModel({
     required this.id,
     required this.userId,
+    this.scheduleId,
     required this.title,
     this.description = '',
     this.category = 'Học tập',
@@ -37,6 +39,8 @@ class TaskModel {
   TaskModel copyWith({
     String? id,
     String? userId,
+    String? scheduleId,
+    bool clearScheduleId = false,
     String? title,
     String? description,
     String? category,
@@ -55,6 +59,7 @@ class TaskModel {
     return TaskModel(
       id: id ?? this.id,
       userId: userId ?? this.userId,
+      scheduleId: clearScheduleId ? null : (scheduleId ?? this.scheduleId),
       title: title ?? this.title,
       description: description ?? this.description,
       category: category ?? this.category,
@@ -77,6 +82,7 @@ class TaskModel {
     return {
       'id': id,
       'user_id': userId,
+      'schedule_id': scheduleId,
       'title': title,
       'description': description,
       'category': category,
@@ -98,6 +104,7 @@ class TaskModel {
     return TaskModel(
       id: map['id'] as String,
       userId: map['user_id'] as String,
+      scheduleId: map['schedule_id'] as String?,
       title: map['title'] as String,
       description: (map['description'] as String?) ?? '',
       category: (map['category'] as String?) ?? 'Học tập',
@@ -119,6 +126,7 @@ class TaskModel {
     return {
       'id': id,
       'userId': userId,
+      'scheduleId': scheduleId,
       'title': title,
       'description': description,
       'category': category,
@@ -140,6 +148,7 @@ class TaskModel {
     return TaskModel(
       id: idOverride ?? (json['id'] as String? ?? ''),
       userId: (json['userId'] as String?) ?? '',
+      scheduleId: json['scheduleId'] as String?,
       title: (json['title'] as String?) ?? '',
       description: (json['description'] as String?) ?? '',
       category: (json['category'] as String?) ?? 'Học tập',

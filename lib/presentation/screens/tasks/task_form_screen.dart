@@ -6,13 +6,15 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../data/models/task_model.dart';
 import '../../../providers/auth_provider.dart';
+import '../../../providers/schedule_provider.dart';
 import '../../../providers/task_provider.dart';
 
-/// Màn hình Thêm / Chỉnh sửa Công việc Todo kèm nhắc trước (1p/5p/10p...) & nhắc lại nhiều lần.
+/// Màn hình Thêm / Chỉnh sửa Công việc nhỏ (gắn vào Mục lớn hoặc Việc khác / Tự do).
 class TaskFormScreen extends StatefulWidget {
   final TaskModel? task;
+  final String? initialScheduleId;
 
-  const TaskFormScreen({super.key, this.task});
+  const TaskFormScreen({super.key, this.task, this.initialScheduleId});
 
   @override
   State<TaskFormScreen> createState() => _TaskFormScreenState();
@@ -22,6 +24,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
   final _titleController = TextEditingController();
   final _descController = TextEditingController();
 
+  String? _scheduleId;
   late String _category;
   late int _priority;
   DateTime? _dueDate;
@@ -37,6 +40,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
   void initState() {
     super.initState();
     final t = widget.task;
+    _scheduleId = t?.scheduleId ?? widget.initialScheduleId;
     _titleController.text = t?.title ?? '';
     _descController.text = t?.description ?? '';
     _category = t?.category ?? AppColors.defaultCategories.first;
@@ -104,6 +108,8 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     try {
       if (_isEditing) {
         final updated = widget.task!.copyWith(
+          scheduleId: _scheduleId,
+          clearScheduleId: _scheduleId == null,
           title: title,
           description: _descController.text.trim(),
           category: _category,
@@ -118,6 +124,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
       } else {
         await taskProvider.addTask(
           userId: auth.effectiveUserId,
+          scheduleId: _scheduleId,
           title: title,
           description: _descController.text.trim(),
           category: _category,
@@ -138,10 +145,11 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
   @override
   Widget build(BuildContext context) {
     final shadTheme = ShadTheme.of(context);
+    final schedules = context.watch<ScheduleProvider>().allSchedules;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isEditing ? 'Chỉnh sửa công việc' : 'Thêm công việc mới'),
+        title: Text(_isEditing ? 'Chỉnh sửa công việc' : 'Thêm công việc'),
       ),
       body: SafeArea(
         child: ListView(
@@ -151,6 +159,29 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  Text('Thuộc mục lớn (Lịch trình)', style: shadTheme.textTheme.small),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ChoiceChip(
+                        label: const Text('Việc khác / Tự do'),
+                        selected: _scheduleId == null,
+                        onSelected: (_) => setState(() => _scheduleId = null),
+                      ),
+                      ...schedules.map((s) {
+                        return ChoiceChip(
+                          label: Text(
+                            '${s.title} (${DateFormatter.dayOfWeekLabel(s.dayOfWeek)})',
+                          ),
+                          selected: _scheduleId == s.id,
+                          onSelected: (_) => setState(() => _scheduleId = s.id),
+                        );
+                      }),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
                   Text('Tiêu đề *', style: shadTheme.textTheme.small),
                   const SizedBox(height: 6),
                   ShadInput(
