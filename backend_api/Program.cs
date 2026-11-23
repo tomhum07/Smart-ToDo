@@ -39,11 +39,85 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 var app = builder.Build();
 
-// Tự động khởi tạo 5 bảng trong Supabase PostgreSQL / SQLite nếu chưa tồn tại
+// Tự động khởi tạo 5 bảng:
+// - Với SQLite (dev local): dùng EnsureCreated()
+// - Với Supabase PostgreSQL: dùng CREATE TABLE IF NOT EXISTS vì DB Supabase đã có sẵn
+//   các bảng hệ thống (auth, storage...) khiến EnsureCreated() bỏ qua bước tạo bảng.
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.EnsureCreated();
+    if (db.Database.IsNpgsql())
+    {
+        db.Database.ExecuteSqlRaw("""
+            CREATE TABLE IF NOT EXISTS "Workspaces" (
+                "Id" character varying(64) PRIMARY KEY,
+                "Name" character varying(120) NOT NULL,
+                "Description" character varying(500) NOT NULL DEFAULT '',
+                "InviteCode" character varying(12) NOT NULL,
+                "OwnerUid" character varying(128) NOT NULL,
+                "OwnerName" character varying(120) NOT NULL,
+                "CreatedAt" bigint NOT NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_Workspaces_InviteCode" ON "Workspaces" ("InviteCode");
+
+            CREATE TABLE IF NOT EXISTS "WorkspaceMembers" (
+                "Id" character varying(64) PRIMARY KEY,
+                "WorkspaceId" character varying(64) NOT NULL REFERENCES "Workspaces"("Id") ON DELETE CASCADE,
+                "UserUid" character varying(128) NOT NULL,
+                "DisplayName" character varying(120) NOT NULL,
+                "Email" character varying(200) NOT NULL DEFAULT '',
+                "Role" character varying(20) NOT NULL DEFAULT 'Member',
+                "JoinedAt" bigint NOT NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS "IX_WorkspaceMembers_WorkspaceId_UserUid"
+                ON "WorkspaceMembers" ("WorkspaceId", "UserUid");
+
+            CREATE TABLE IF NOT EXISTS "WorkspaceSchedules" (
+                "Id" character varying(64) PRIMARY KEY,
+                "WorkspaceId" character varying(64) NOT NULL REFERENCES "Workspaces"("Id") ON DELETE CASCADE,
+                "Title" character varying(200) NOT NULL,
+                "DayOfWeek" integer NOT NULL,
+                "ScheduleDate" character varying(16),
+                "IsRecurring" boolean NOT NULL DEFAULT FALSE,
+                "StartTime" character varying(10) NOT NULL,
+                "EndTime" character varying(10) NOT NULL,
+                "Location" character varying(200) NOT NULL DEFAULT '',
+                "Note" character varying(1000) NOT NULL DEFAULT '',
+                "ColorHex" character varying(16) NOT NULL DEFAULT '#DBEAFE',
+                "CreatedByName" character varying(120) NOT NULL DEFAULT '',
+                "UpdatedAt" bigint NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS "WorkspaceTasks" (
+                "Id" character varying(64) PRIMARY KEY,
+                "WorkspaceId" character varying(64) NOT NULL REFERENCES "Workspaces"("Id") ON DELETE CASCADE,
+                "ScheduleId" character varying(64) REFERENCES "WorkspaceSchedules"("Id") ON DELETE CASCADE,
+                "Title" character varying(200) NOT NULL,
+                "Description" character varying(1000) NOT NULL DEFAULT '',
+                "Priority" integer NOT NULL DEFAULT 1,
+                "IsCompleted" boolean NOT NULL DEFAULT FALSE,
+                "DueDate" bigint,
+                "AssigneeUid" character varying(128),
+                "AssigneeName" character varying(120),
+                "UpdatedAt" bigint NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS "WorkspaceNotes" (
+                "Id" character varying(64) PRIMARY KEY,
+                "WorkspaceId" character varying(64) NOT NULL REFERENCES "Workspaces"("Id") ON DELETE CASCADE,
+                "ScheduleDate" character varying(16),
+                "Title" character varying(200) NOT NULL,
+                "Content" character varying(4000) NOT NULL DEFAULT '',
+                "ColorHex" character varying(16) NOT NULL DEFAULT '#FEF3C7',
+                "AuthorName" character varying(120) NOT NULL DEFAULT '',
+                "UpdatedAt" bigint NOT NULL
+            );
+        """);
+    }
+    else
+    {
+        db.Database.EnsureCreated();
+    }
 }
 
 // Bật Swagger UI ở cả Production để dễ kiểm thử & trình bày trong Báo cáo đồ án
