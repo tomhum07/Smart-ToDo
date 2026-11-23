@@ -52,6 +52,103 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _showForgotPasswordDialog() async {
+    final resetController = TextEditingController(
+      text: _emailController.text.trim(),
+    );
+    String? dialogError;
+    var isSending = false;
+
+    await showShadDialog<void>(
+      context: context,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return ShadDialog(
+              title: const Text('Quên mật khẩu'),
+              description: const Text(
+                'Nhập email đã đăng ký, Firebase sẽ gửi đường dẫn đặt lại mật khẩu vào hộp thư của bạn.',
+              ),
+              actions: [
+                ShadButton.outline(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Hủy'),
+                ),
+                ShadButton(
+                  onPressed: isSending
+                      ? null
+                      : () async {
+                          final email = resetController.text.trim();
+                          if (email.isEmpty || !email.contains('@')) {
+                            setDialogState(
+                              () => dialogError = 'Vui lòng nhập email hợp lệ.',
+                            );
+                            return;
+                          }
+                          setDialogState(() {
+                            isSending = true;
+                            dialogError = null;
+                          });
+                          final error = await context
+                              .read<AuthProvider>()
+                              .sendPasswordResetEmail(email);
+                          if (!ctx.mounted) return;
+                          if (error != null) {
+                            setDialogState(() {
+                              isSending = false;
+                              dialogError = error;
+                            });
+                            return;
+                          }
+                          Navigator.pop(ctx);
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Đã gửi email đặt lại mật khẩu tới $email.',
+                              ),
+                            ),
+                          );
+                        },
+                  child: isSending
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Gửi link đặt lại'),
+                ),
+              ],
+              child: Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ShadInput(
+                      controller: resetController,
+                      placeholder: const Text('sinhvien@dthu.edu.vn'),
+                      keyboardType: TextInputType.emailAddress,
+                    ),
+                    if (dialogError != null) ...[
+                      const SizedBox(height: 10),
+                      ShadAlert.destructive(
+                        icon: const Icon(LucideIcons.circleAlert),
+                        title: const Text('Không thể gửi email'),
+                        description: Text(dialogError!),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+    resetController.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -152,7 +249,15 @@ class _LoginScreenState extends State<LoginScreen> {
                               description: Text(errorToShow),
                             ),
                           ],
-                          const SizedBox(height: 18),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: ShadButton.link(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              onPressed: _showForgotPasswordDialog,
+                              child: const Text('Quên mật khẩu?'),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
                           ShadButton(
                             onPressed: auth.isLoading ? null : _handleLogin,
                             child: auth.isLoading
