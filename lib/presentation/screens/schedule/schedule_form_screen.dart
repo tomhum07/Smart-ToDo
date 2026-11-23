@@ -8,7 +8,7 @@ import '../../../data/models/schedule_model.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/schedule_provider.dart';
 
-/// Màn hình Thêm / Chỉnh sửa Lịch trình / Thời khóa biểu theo thứ & khung giờ.
+/// Màn hình Thêm / Chỉnh sửa Mục lớn (Lịch trình / Môn học) hỗ trợ ngày cụ thể & lặp hằng tuần.
 class ScheduleFormScreen extends StatefulWidget {
   final ScheduleModel? schedule;
 
@@ -23,7 +23,8 @@ class _ScheduleFormScreenState extends State<ScheduleFormScreen> {
   final _locationController = TextEditingController();
   final _noteController = TextEditingController();
 
-  late int _dayOfWeek;
+  late DateTime _selectedDate;
+  late bool _isRecurring;
   late TimeOfDay _startTime;
   late TimeOfDay _endTime;
   late String _colorHex;
@@ -36,11 +37,15 @@ class _ScheduleFormScreenState extends State<ScheduleFormScreen> {
   void initState() {
     super.initState();
     final s = widget.schedule;
-    final defaultDay = context.read<ScheduleProvider>().selectedDayOfWeek;
+    final defaultDate = context.read<ScheduleProvider>().selectedDate;
     _titleController.text = s?.title ?? '';
     _locationController.text = s?.location ?? '';
     _noteController.text = s?.note ?? '';
-    _dayOfWeek = s?.dayOfWeek ?? defaultDay;
+    _selectedDate = (s?.scheduleDate != null
+            ? DateTime.tryParse(s!.scheduleDate!)
+            : null) ??
+        defaultDate;
+    _isRecurring = s?.isRecurring ?? false;
     _startTime = _parseTime(s?.startTime ?? '07:30');
     _endTime = _parseTime(s?.endTime ?? '09:30');
     _colorHex = s?.colorHex ?? AppColors.noteColorHexes[2];
@@ -62,6 +67,18 @@ class _ScheduleFormScreenState extends State<ScheduleFormScreen> {
     _locationController.dispose();
     _noteController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(now.year - 2),
+      lastDate: DateTime(now.year + 5),
+    );
+    if (picked == null) return;
+    setState(() => _selectedDate = picked);
   }
 
   Future<void> _pickTime({required bool isStart}) async {
@@ -108,7 +125,9 @@ class _ScheduleFormScreenState extends State<ScheduleFormScreen> {
         existing: widget.schedule,
         userId: auth.effectiveUserId,
         title: title,
-        dayOfWeek: _dayOfWeek,
+        dayOfWeek: _selectedDate.weekday,
+        scheduleDate: _selectedDate,
+        isRecurring: _isRecurring,
         startTime: _formatTime(_startTime),
         endTime: _formatTime(_endTime),
         location: _locationController.text.trim(),
@@ -127,7 +146,7 @@ class _ScheduleFormScreenState extends State<ScheduleFormScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isEditing ? 'Chỉnh sửa lịch trình' : 'Thêm lịch trình mới'),
+        title: Text(_isEditing ? 'Chỉnh sửa mục lớn' : 'Thêm mục lớn mới'),
       ),
       body: SafeArea(
         child: ListView(
@@ -137,26 +156,55 @@ class _ScheduleFormScreenState extends State<ScheduleFormScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('Tên môn học / Sự kiện *', style: shadTheme.textTheme.small),
+                  Text(
+                    'Tên môn học / Sự kiện *',
+                    style: shadTheme.textTheme.small,
+                  ),
                   const SizedBox(height: 6),
                   ShadInput(
                     controller: _titleController,
                     placeholder: const Text('VD: Lập trình Ứng dụng Mobile'),
                   ),
                   const SizedBox(height: 16),
-                  Text('Thứ trong tuần', style: shadTheme.textTheme.small),
+                  Text('Ngày diễn ra', style: shadTheme.textTheme.small),
                   const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: List.generate(7, (i) {
-                      final day = i + 1;
-                      return ChoiceChip(
-                        label: Text(DateFormatter.dayOfWeekLabel(day)),
-                        selected: _dayOfWeek == day,
-                        onSelected: (_) => setState(() => _dayOfWeek = day),
-                      );
-                    }),
+                  ShadButton.outline(
+                    onPressed: _pickDate,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(LucideIcons.calendar, size: 16),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${DateFormatter.dayOfWeekLabel(_selectedDate.weekday)}, ${DateFormatter.formatDate(_selectedDate)}',
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Icon(LucideIcons.repeat, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Lặp lại hằng tuần'),
+                            Text(
+                              _isRecurring
+                                  ? 'Tự động hiển thị vào mỗi ${DateFormatter.dayOfWeekLabel(_selectedDate.weekday)}'
+                                  : 'Chỉ hiển thị duy nhất ngày ${DateFormatter.formatDate(_selectedDate)}',
+                              style: shadTheme.textTheme.muted,
+                            ),
+                          ],
+                        ),
+                      ),
+                      ShadSwitch(
+                        value: _isRecurring,
+                        onChanged: (v) => setState(() => _isRecurring = v),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16),
                   Text('Khung giờ', style: shadTheme.textTheme.small),
@@ -179,11 +227,14 @@ class _ScheduleFormScreenState extends State<ScheduleFormScreen> {
                     ],
                   ),
                   const SizedBox(height: 14),
-                  Text('Phòng học / Địa điểm', style: shadTheme.textTheme.small),
+                  Text(
+                    'Phòng học / Địa điểm',
+                    style: shadTheme.textTheme.small,
+                  ),
                   const SizedBox(height: 6),
                   ShadInput(
                     controller: _locationController,
-                    placeholder: const Text('VD: Phòng B204 - ĐH Đồng Tháp'),
+                    placeholder: const Text('VD: Phòng B4-202'),
                   ),
                   const SizedBox(height: 14),
                   Text('Ghi chú thêm', style: shadTheme.textTheme.small),

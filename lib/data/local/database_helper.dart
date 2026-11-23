@@ -13,7 +13,7 @@ class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._();
 
   static const String _dbName = 'smart_todo.db';
-  static const int _dbVersion = 3;
+  static const int _dbVersion = 4;
 
   static const String tableTasks = 'tasks';
   static const String tableNotes = 'notes';
@@ -53,6 +53,14 @@ class DatabaseHelper {
       );
       await db.execute(
         'CREATE INDEX IF NOT EXISTS idx_tasks_schedule ON $tableTasks (schedule_id, is_deleted)',
+      );
+    }
+    if (oldVersion < 4) {
+      await db.execute(
+        'ALTER TABLE $tableSchedules ADD COLUMN schedule_date TEXT',
+      );
+      await db.execute(
+        'ALTER TABLE $tableSchedules ADD COLUMN is_recurring INTEGER DEFAULT 0',
       );
     }
   }
@@ -103,6 +111,8 @@ class DatabaseHelper {
         user_id TEXT NOT NULL,
         title TEXT NOT NULL,
         day_of_week INTEGER NOT NULL,
+        schedule_date TEXT,
+        is_recurring INTEGER DEFAULT 0,
         start_time TEXT NOT NULL,
         end_time TEXT NOT NULL,
         location TEXT,

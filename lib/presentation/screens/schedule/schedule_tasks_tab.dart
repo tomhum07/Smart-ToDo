@@ -5,17 +5,15 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/routes/app_routes.dart';
 import '../../../core/utils/date_formatter.dart';
-import '../../../data/models/holiday_model.dart';
 import '../../../data/models/schedule_model.dart';
 import '../../../data/models/task_model.dart';
-import '../../../data/remote/holiday_api_service.dart';
 import '../../../providers/schedule_provider.dart';
 import '../../../providers/task_provider.dart';
 import '../../widgets/deadline_alert_banner.dart';
 import '../../widgets/filter_bar_widget.dart';
 import '../../widgets/share_schedule_dialog.dart';
 
-/// Tab 1 hợp nhất: Lịch trình (Mục lớn theo T2–CN) + Công việc nhỏ bên trong + Mục Việc khác.
+/// Tab 1 hợp nhất: Chọn Workspace + Lịch tuần (< > tuần cũ/tương lai, ngày/tháng) + Mục lớn & Việc nhỏ.
 class ScheduleTasksTab extends StatefulWidget {
   const ScheduleTasksTab({super.key});
 
@@ -26,10 +24,7 @@ class ScheduleTasksTab extends StatefulWidget {
 class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
-  final HolidayApiService _holidayApiService = HolidayApiService();
 
-  Future<List<HolidayModel>>? _holidaysFuture;
-  bool _showHolidays = false;
   bool _showScrollToTop = false;
   final Set<String> _expandedScheduleIds = <String>{};
 
@@ -53,9 +48,83 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
     super.dispose();
   }
 
-  Future<List<HolidayModel>> _getHolidaysFuture() {
-    return _holidaysFuture ??=
-        _holidayApiService.fetchVietnamHolidays(DateTime.now().year);
+  void _showWorkspaceSwitcherSheet() {
+    final scheduleProvider = context.read<ScheduleProvider>();
+    final workspaces = scheduleProvider.workspaces;
+    final activeId = scheduleProvider.activeWorkspace.id;
+
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) {
+        final shadTheme = ShadTheme.of(ctx);
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Chọn Không gian làm việc (Workspace)',
+                  style: shadTheme.textTheme.h4,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Chuyển đổi giữa lịch cá nhân và không gian chia sẻ nhóm (.NET Web API).',
+                  style: shadTheme.textTheme.muted,
+                ),
+                const SizedBox(height: 12),
+                ...workspaces.map((ws) {
+                  final isSelected = ws.id == activeId;
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    selected: isSelected,
+                    leading: Icon(
+                      ws.isPersonal ? LucideIcons.user : LucideIcons.users,
+                    ),
+                    title: Text(ws.name),
+                    subtitle: Text(
+                      ws.isPersonal
+                          ? 'Dữ liệu cá nhân (SQLite + Firebase)'
+                          : 'Mã nhóm: ${ws.inviteCode ?? "---"}',
+                    ),
+                    trailing: isSelected
+                        ? const Icon(LucideIcons.check, size: 18)
+                        : null,
+                    onTap: () {
+                      scheduleProvider.selectWorkspace(ws.id);
+                      Navigator.pop(ctx);
+                    },
+                  );
+                }),
+                const Divider(height: 20),
+                ShadButton.outline(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    showShadDialog<void>(
+                      context: context,
+                      builder: (_) => const ShareScheduleDialog(),
+                    );
+                  },
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(LucideIcons.users, size: 16),
+                      SizedBox(width: 8),
+                      Text('Tạo / Tham gia Workspace bằng mã'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _showAddOptionsSheet() {
@@ -124,11 +193,17 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
     }
   }
 
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
   @override
   Widget build(BuildContext context) {
     final scheduleProvider = context.watch<ScheduleProvider>();
     final taskProvider = context.watch<TaskProvider>();
     final shadTheme = ShadTheme.of(context);
+    final activeWorkspace = scheduleProvider.activeWorkspace;
+    final weekDates = scheduleProvider.currentWeekDates;
+    final today = DateTime.now();
 
     final query = taskProvider.searchQuery.trim().toLowerCase();
     final daySchedules = scheduleProvider.schedulesForSelectedDay.where((s) {
@@ -143,14 +218,67 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
     }).toList();
 
     final standaloneTasks = taskProvider.standaloneFilteredTasks;
+    final selectedDate = scheduleProvider.selectedDate;
 
     return Scaffold(
       body: Column(
         children: [
           const DeadlineAlertBanner(),
-          // Thanh tìm kiếm & Bộ lọc siêu gọn 1 hàng
+
+          // 1. Thanh chọn Workspace (thay cho phần Ngày lễ cũ)
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 8, 14, 6),
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
+            child: InkWell(
+              onTap: _showWorkspaceSwitcherSheet,
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: shadTheme.colorScheme.secondary.withValues(alpha: 0.45),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: shadTheme.colorScheme.border,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      activeWorkspace.isPersonal
+                          ? LucideIcons.layers
+                          : LucideIcons.users,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        activeWorkspace.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: shadTheme.textTheme.small.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    ShadBadge.outline(
+                      child: Text(
+                        activeWorkspace.isPersonal ? 'Cá nhân' : 'Nhóm',
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Icon(LucideIcons.chevronsUpDown, size: 15),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // 2. Thanh tìm kiếm & Bộ lọc siêu gọn 1 hàng
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 4, 14, 6),
             child: FilterBarWidget(
               searchController: _searchController,
               searchPlaceholder: 'Tìm môn học, công việc...',
@@ -169,7 +297,10 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('Trạng thái công việc', style: shadTheme.textTheme.small),
+                    Text(
+                      'Trạng thái công việc',
+                      style: shadTheme.textTheme.small,
+                    ),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 8,
@@ -246,187 +377,154 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
             ),
           ),
 
-          // Thanh 7 ngày T2 -> CN co đều gọn trong 1 hàng
+          // 3. Thanh Lịch Tuần có nút < > chuyển tuần cũ / tuần tương lai + Thứ & Ngày/Tháng
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 2, 12, 6),
-            child: Row(
-              children: List.generate(7, (index) {
-                final day = index + 1;
-                final isSelected = scheduleProvider.selectedDayOfWeek == day;
-                final count = scheduleProvider.countForDay(day);
-                final shortLabel = day == 7 ? 'CN' : 'T${day + 1}';
-
-                return Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: InkWell(
-                      onTap: () => scheduleProvider.selectDay(day),
-                      borderRadius: BorderRadius.circular(10),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        padding: const EdgeInsets.symmetric(vertical: 7),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? shadTheme.colorScheme.primary
-                              : shadTheme.colorScheme.secondary
-                                  .withValues(alpha: 0.5),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text(
-                                shortLabel,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: isSelected
-                                      ? shadTheme.colorScheme.primaryForeground
-                                      : shadTheme.colorScheme.foreground,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Container(
-                              width: 5,
-                              height: 5,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: count > 0
-                                    ? (isSelected
-                                        ? shadTheme
-                                            .colorScheme.primaryForeground
-                                        : shadTheme.colorScheme.primary)
-                                    : Colors.transparent,
-                              ),
-                            ),
-                          ],
+            padding: const EdgeInsets.fromLTRB(6, 0, 6, 8),
+            child: Column(
+              children: [
+                if (!scheduleProvider.isCurrentWeek)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: GestureDetector(
+                      onTap: scheduleProvider.jumpToToday,
+                      child: ShadBadge.secondary(
+                        child: Text(
+                          'Tuần ${weekDates.first.day}/${weekDates.first.month} – ${weekDates.last.day}/${weekDates.last.month} • Về Hôm nay',
+                          style: const TextStyle(fontSize: 11),
                         ),
                       ),
                     ),
                   ),
-                );
-              }),
-            ),
-          ),
+                Row(
+                  children: [
+                    IconButton(
+                      tooltip: 'Tuần trước',
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 28,
+                        minHeight: 36,
+                      ),
+                      onPressed: scheduleProvider.previousWeek,
+                      icon: const Icon(LucideIcons.chevronLeft, size: 18),
+                    ),
+                    Expanded(
+                      child: Row(
+                        children: List.generate(7, (index) {
+                          final date = weekDates[index];
+                          final day = index + 1;
+                          final isSelected =
+                              scheduleProvider.selectedDayOfWeek == day;
+                          final isToday = _isSameDay(date, today);
+                          final count = scheduleProvider.countForDate(date);
+                          final shortLabel = day == 7 ? 'CN' : 'T${day + 1}';
+                          final dayMonth = '${date.day}/${date.month}';
 
-          // Thẻ Ngày lễ VN thu gọn + nút Chia sẻ
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-            child: ShadCard(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: InkWell(
-                          onTap: () =>
-                              setState(() => _showHolidays = !_showHolidays),
-                          borderRadius: BorderRadius.circular(8),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Row(
-                              children: [
-                                const Icon(LucideIcons.sparkles, size: 14),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    'Ngày lễ VN ${DateTime.now().year}',
-                                    style: shadTheme.textTheme.small.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                          return Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 2),
+                              child: InkWell(
+                                onTap: () => scheduleProvider.selectDay(day),
+                                borderRadius: BorderRadius.circular(10),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 180),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 6,
+                                    horizontal: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? shadTheme.colorScheme.primary
+                                        : shadTheme.colorScheme.secondary
+                                            .withValues(alpha: 0.45),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: isToday && !isSelected
+                                        ? Border.all(
+                                            color: shadTheme.colorScheme.primary,
+                                            width: 1.5,
+                                          )
+                                        : null,
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        child: Text(
+                                          shortLabel,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                            color: isSelected
+                                                ? shadTheme.colorScheme
+                                                    .primaryForeground
+                                                : shadTheme
+                                                    .colorScheme.foreground,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        child: Text(
+                                          dayMonth,
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: isToday
+                                                ? FontWeight.w700
+                                                : FontWeight.w500,
+                                            color: isSelected
+                                                ? shadTheme.colorScheme
+                                                    .primaryForeground
+                                                    .withValues(alpha: 0.9)
+                                                : shadTheme.colorScheme
+                                                    .mutedForeground,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Container(
+                                        width: 4,
+                                        height: 4,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: count > 0
+                                              ? (isSelected
+                                                  ? shadTheme.colorScheme
+                                                      .primaryForeground
+                                                  : shadTheme
+                                                      .colorScheme.primary)
+                                              : Colors.transparent,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                Icon(
-                                  _showHolidays
-                                      ? LucideIcons.chevronUp
-                                      : LucideIcons.chevronDown,
-                                  size: 15,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      ShadButton.ghost(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        onPressed: () {
-                          showShadDialog<void>(
-                            context: context,
-                            builder: (_) => const ShareScheduleDialog(),
-                          );
-                        },
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(LucideIcons.share2, size: 14),
-                            SizedBox(width: 4),
-                            Text('Chia sẻ'),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (_showHolidays) ...[
-                    const Divider(height: 10),
-                    FutureBuilder<List<HolidayModel>>(
-                      future: _getHolidaysFuture(),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Padding(
-                            padding: EdgeInsets.all(10),
-                            child: Center(child: CircularProgressIndicator()),
-                          );
-                        }
-                        if (snapshot.hasError) {
-                          return Text(
-                            'Không tải được ngày lễ (kiểm tra mạng).',
-                            style: shadTheme.textTheme.muted,
-                          );
-                        }
-                        final holidays = snapshot.data ?? [];
-                        return Column(
-                          children: holidays.take(5).map((h) {
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 3),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      h.localName,
-                                      style: shadTheme.textTheme.small,
-                                    ),
-                                  ),
-                                  ShadBadge.secondary(
-                                    child: Text(
-                                      DateFormatter.formatDate(h.date),
-                                    ),
-                                  ),
-                                ],
                               ),
-                            );
-                          }).toList(),
-                        );
-                      },
+                            ),
+                          );
+                        }),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Tuần sau',
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 28,
+                        minHeight: 36,
+                      ),
+                      onPressed: scheduleProvider.nextWeek,
+                      icon: const Icon(LucideIcons.chevronRight, size: 18),
                     ),
                   ],
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 4),
           const Divider(height: 1),
 
-          // Danh sách Mục lớn (Lịch trình trong ngày) + Mục Việc khác / Tự do
+          // 4. Danh sách Mục lớn (Lịch trình trong ngày) + Mục Việc khác / Tự do
           Expanded(
             child: (scheduleProvider.isLoading && taskProvider.isLoading)
                 ? const Center(child: CircularProgressIndicator())
@@ -434,17 +532,11 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
                     controller: _scrollController,
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
                     children: [
-                      // 1. Các Mục lớn trong ngày đang chọn
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Lịch trình ${DateFormatter.dayOfWeekLabel(scheduleProvider.selectedDayOfWeek)} (${daySchedules.length})',
-                            style: shadTheme.textTheme.small.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
+                      Text(
+                        '${DateFormatter.dayOfWeekLabel(scheduleProvider.selectedDayOfWeek)}, ${DateFormatter.formatDate(selectedDate)} (${daySchedules.length} mục lớn)',
+                        style: shadTheme.textTheme.small.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       if (daySchedules.isEmpty)
@@ -495,7 +587,7 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
 
                       const SizedBox(height: 18),
 
-                      // 2. Mục "Việc khác / Tự do" (Công việc lẻ không gắn vào lịch cố định)
+                      // Mục "Việc khác / Tự do"
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -701,7 +793,6 @@ class _ScheduleParentCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    // Danh sách công việc nhỏ mở rộng nhanh ngay trên thẻ
                     if (isExpanded) ...[
                       const Divider(height: 1),
                       Padding(

@@ -23,7 +23,8 @@ enum AppColorPalette {
   }
 }
 
-/// Cấu hình giao diện Sáng / Tối đồng bộ giữa shadcn_ui và Material 3 theo bảng màu đã chọn.
+/// Cấu hình giao diện Sáng / Tối đồng bộ 100% giữa shadcn_ui và toàn bộ Material 3 widgets
+/// (NavigationBar, NavigationRail, FAB, ChoiceChip, Checkbox, ProgressIndicator, AppBar).
 class AppTheme {
   AppTheme._();
 
@@ -76,6 +77,7 @@ class AppTheme {
   ) {
     final colors = colorSchemeFor(palette, brightness);
     final isDark = brightness == Brightness.dark;
+    final indicatorTint = colors.primary.withValues(alpha: isDark ? 0.24 : 0.14);
 
     return ThemeData(
       useMaterial3: true,
@@ -85,8 +87,12 @@ class AppTheme {
           ? ColorScheme.dark(
               primary: colors.primary,
               onPrimary: colors.primaryForeground,
+              primaryContainer: indicatorTint,
+              onPrimaryContainer: colors.primary,
               secondary: colors.secondary,
               onSecondary: colors.secondaryForeground,
+              secondaryContainer: indicatorTint,
+              onSecondaryContainer: colors.primary,
               surface: colors.background,
               onSurface: colors.foreground,
               error: colors.destructive,
@@ -95,8 +101,12 @@ class AppTheme {
           : ColorScheme.light(
               primary: colors.primary,
               onPrimary: colors.primaryForeground,
+              primaryContainer: indicatorTint,
+              onPrimaryContainer: colors.primary,
               secondary: colors.secondary,
               onSecondary: colors.secondaryForeground,
+              secondaryContainer: indicatorTint,
+              onSecondaryContainer: colors.primary,
               surface: colors.background,
               onSurface: colors.foreground,
               error: colors.destructive,
@@ -110,7 +120,60 @@ class AppTheme {
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: colors.card,
-        indicatorColor: colors.secondary,
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: indicatorTint,
+        iconTheme: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return IconThemeData(
+            color: selected ? colors.primary : colors.mutedForeground,
+          );
+        }),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return TextStyle(
+            fontSize: 12,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            color: selected ? colors.primary : colors.mutedForeground,
+          );
+        }),
+      ),
+      navigationRailTheme: NavigationRailThemeData(
+        backgroundColor: colors.card,
+        indicatorColor: indicatorTint,
+        selectedIconTheme: IconThemeData(color: colors.primary),
+        unselectedIconTheme: IconThemeData(color: colors.mutedForeground),
+        selectedLabelTextStyle: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: colors.primary,
+        ),
+        unselectedLabelTextStyle: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+          color: colors.mutedForeground,
+        ),
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: colors.primary,
+        foregroundColor: colors.primaryForeground,
+      ),
+      chipTheme: ChipThemeData(
+        selectedColor: colors.primary,
+        checkmarkColor: colors.primaryForeground,
+        secondaryLabelStyle: TextStyle(
+          color: colors.primaryForeground,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return colors.primary;
+          return Colors.transparent;
+        }),
+        checkColor: WidgetStatePropertyAll(colors.primaryForeground),
+      ),
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        color: colors.primary,
       ),
     );
   }
