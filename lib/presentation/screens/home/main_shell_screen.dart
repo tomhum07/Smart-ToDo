@@ -12,6 +12,7 @@ import '../../../providers/note_provider.dart';
 import '../../../providers/schedule_provider.dart';
 import '../../../providers/task_provider.dart';
 import '../../../providers/theme_provider.dart';
+import '../../../providers/workspace_provider.dart';
 import '../dashboard/stats_tab.dart';
 import '../notes/notes_tab.dart';
 import '../profile/profile_tab.dart';
@@ -61,12 +62,21 @@ class _MainShellScreenState extends State<MainShellScreen> {
     final taskProvider = context.read<TaskProvider>();
     final noteProvider = context.read<NoteProvider>();
     final scheduleProvider = context.read<ScheduleProvider>();
+    final workspaceProvider = context.read<WorkspaceProvider>();
 
     await Future.wait([
       taskProvider.loadTasks(userId, force: true),
       noteProvider.loadNotes(userId, force: true),
       scheduleProvider.loadSchedules(userId, force: true),
     ]);
+
+    // Nạp danh sách Shared Workspace từ .NET Web API (nếu đã deploy & gắn URL)
+    workspaceProvider.loadMyWorkspaces(userId).then((_) {
+      if (!mounted) return;
+      scheduleProvider.setSharedWorkspaces(
+        workspaceProvider.toWorkspaceOptions(),
+      );
+    });
 
     await _realtimeSyncSub?.cancel();
     await _connectivitySub?.cancel();

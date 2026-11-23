@@ -65,3 +65,14 @@ lib/firebase_options.dart
 android/key.properties
 *.jks
 *.keystore
+
+# .NET Backend build artifacts & local DB/secrets
+backend_api/.vs/
+backend_api/bin/
+backend_api/obj/
+backend_api/*.db
+backend_api/*.db-shm
+backend_api/*.db-wal
+backend_api/appsettings.Development.json
+*.suo
+*.user

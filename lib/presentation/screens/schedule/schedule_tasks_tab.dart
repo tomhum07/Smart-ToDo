@@ -9,9 +9,11 @@ import '../../../data/models/schedule_model.dart';
 import '../../../data/models/task_model.dart';
 import '../../../providers/schedule_provider.dart';
 import '../../../providers/task_provider.dart';
+import '../../../providers/workspace_provider.dart';
 import '../../widgets/deadline_alert_banner.dart';
 import '../../widgets/filter_bar_widget.dart';
-import '../../widgets/share_schedule_dialog.dart';
+import '../../widgets/shared_workspace_body.dart';
+import '../../widgets/workspace_dialog.dart';
 
 /// Tab 1 hợp nhất: Chọn Workspace + Lịch tuần (< > tuần cũ/tương lai, ngày/tháng) + Mục lớn & Việc nhỏ.
 class ScheduleTasksTab extends StatefulWidget {
@@ -97,6 +99,7 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
                         : null,
                     onTap: () {
                       scheduleProvider.selectWorkspace(ws.id);
+                      context.read<WorkspaceProvider>().loadOverview(ws.id);
                       Navigator.pop(ctx);
                     },
                   );
@@ -107,7 +110,7 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
                     Navigator.pop(ctx);
                     showShadDialog<void>(
                       context: context,
-                      builder: (_) => const ShareScheduleDialog(),
+                      builder: (_) => const WorkspaceDialog(),
                     );
                   },
                   child: const Row(
@@ -200,6 +203,7 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
   Widget build(BuildContext context) {
     final scheduleProvider = context.watch<ScheduleProvider>();
     final taskProvider = context.watch<TaskProvider>();
+    final workspaceProvider = context.watch<WorkspaceProvider>();
     final shadTheme = ShadTheme.of(context);
     final activeWorkspace = scheduleProvider.activeWorkspace;
     final weekDates = scheduleProvider.currentWeekDates;
@@ -416,7 +420,12 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
                           final isSelected =
                               scheduleProvider.selectedDayOfWeek == day;
                           final isToday = _isSameDay(date, today);
-                          final count = scheduleProvider.countForDate(date);
+                          final count = activeWorkspace.isPersonal
+                              ? scheduleProvider.countForDate(date)
+                              : (workspaceProvider.activeOverview?.schedules
+                                      .where((s) => s.occursOnDate(date))
+                                      .length ??
+                                  0);
                           final shortLabel = day == 7 ? 'CN' : 'T${day + 1}';
                           final dayMonth = '${date.day}/${date.month}';
 
@@ -524,9 +533,11 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
           ),
           const Divider(height: 1),
 
-          // 4. Danh sách Mục lớn (Lịch trình trong ngày) + Mục Việc khác / Tự do
+          // 4. Nội dung theo Workspace đang chọn (Cá nhân hoặc Không gian Chia sẻ Nhóm)
           Expanded(
-            child: (scheduleProvider.isLoading && taskProvider.isLoading)
+            child: !activeWorkspace.isPersonal
+                ? SharedWorkspaceBody(selectedDate: selectedDate)
+                : (scheduleProvider.isLoading && taskProvider.isLoading)
                 ? const Center(child: CircularProgressIndicator())
                 : ListView(
                     controller: _scrollController,

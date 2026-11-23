@@ -130,9 +130,11 @@ class _ShareScheduleDialogState extends State<ShareScheduleDialog> {
           child: const Text('Đóng'),
         ),
       ],
-      child: Padding(
-        padding: const EdgeInsets.only(top: 12),
-        child: Column(
+      child: Material(
+        type: MaterialType.transparency,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -254,6 +256,7 @@ class _ShareScheduleDialogState extends State<ShareScheduleDialog> {
               ),
             ],
           ],
+        ),
         ),
       ),
     );

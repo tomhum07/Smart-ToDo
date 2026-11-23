@@ -11,6 +11,7 @@ import 'providers/note_provider.dart';
 import 'providers/schedule_provider.dart';
 import 'providers/task_provider.dart';
 import 'providers/theme_provider.dart';
+import 'providers/workspace_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,6 +47,9 @@ class SmartTodoApp extends StatelessWidget {
         ChangeNotifierProvider<NoteProvider>(create: (_) => NoteProvider()),
         ChangeNotifierProvider<ScheduleProvider>(
           create: (_) => ScheduleProvider(),
+        ),
+        ChangeNotifierProvider<WorkspaceProvider>(
+          create: (_) => WorkspaceProvider(),
         ),
       ],
       child: Consumer<ThemeProvider>(
