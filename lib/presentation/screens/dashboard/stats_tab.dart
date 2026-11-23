@@ -5,13 +5,15 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../core/utils/deadline_stream.dart';
+import '../../../data/models/holiday_model.dart';
 import '../../../data/remote/firebase_sync_service.dart';
+import '../../../data/remote/holiday_api_service.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/note_provider.dart';
 import '../../../providers/schedule_provider.dart';
 import '../../../providers/task_provider.dart';
 
-/// Tab Thống kê thời gian thực (StreamBuilder + async*/yield + LayoutBuilder + nút Đồng bộ Cloud).
+/// Tab Thống kê thời gian thực (StreamBuilder + async*/yield + LayoutBuilder + FutureBuilder REST API).
 class StatsTab extends StatefulWidget {
   const StatsTab({super.key});
 
@@ -21,6 +23,8 @@ class StatsTab extends StatefulWidget {
 
 class _StatsTabState extends State<StatsTab> {
   late Stream<DeadlineSummary> _deadlineStream;
+  late Future<List<HolidayModel>> _holidaysFuture;
+  final HolidayApiService _holidayApi = HolidayApiService();
   bool _isManualSyncing = false;
 
   @override
@@ -28,6 +32,7 @@ class _StatsTabState extends State<StatsTab> {
     super.initState();
     _deadlineStream =
         watchDeadlineStream(() => context.read<TaskProvider>().allTasks);
+    _holidaysFuture = _holidayApi.fetchVietnamHolidays(DateTime.now().year);
   }
 
   Future<void> _syncNow() async {
@@ -202,9 +207,9 @@ class _StatsTabState extends State<StatsTab> {
                 ),
                 const SizedBox(height: 8),
                 _StatusRow(
-                  label: '.NET Web API (Chia sẻ lịch)',
+                  label: '.NET Web API (Không gian chung)',
                   isReady: ApiConstants.isDotNetConfigured,
-                  pendingText: 'Phase 4',
+                  pendingText: 'Chưa kết nối',
                 ),
                 const SizedBox(height: 14),
                 ShadButton.outline(
@@ -225,6 +230,98 @@ class _StatsTabState extends State<StatsTab> {
                         ),
                 ),
               ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        ShadCard(
+          title: const Text('Ngày lễ Việt Nam sắp tới'),
+          description: const Text(
+            'Tải trực tiếp từ Nager.Date Public REST API (FutureBuilder).',
+          ),
+          child: Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: FutureBuilder<List<HolidayModel>>(
+              future: _holidaysFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Không tải được danh sách ngày lễ (offline).',
+                          style: shadTheme.textTheme.muted,
+                        ),
+                      ),
+                      ShadButton.ghost(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        onPressed: () => setState(() {
+                          _holidaysFuture = _holidayApi
+                              .fetchVietnamHolidays(DateTime.now().year);
+                        }),
+                        child: const Text('Thử lại'),
+                      ),
+                    ],
+                  );
+                }
+
+                final holidays = snapshot.data ?? const [];
+                if (holidays.isEmpty) {
+                  return Text(
+                    'Không có dữ liệu ngày lễ cho năm ${DateTime.now().year}.',
+                    style: shadTheme.textTheme.muted,
+                  );
+                }
+
+                final now = DateTime.now();
+                final today = DateTime(now.year, now.month, now.day);
+                final upcoming = holidays
+                    .where((h) => !h.date.isBefore(today))
+                    .take(3)
+                    .toList();
+                final displayList =
+                    upcoming.isNotEmpty ? upcoming : holidays.take(3).toList();
+
+                return Column(
+                  children: displayList.map((h) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          ShadBadge.outline(
+                            child: Text(DateFormatter.formatDate(h.date)),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              h.localName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: shadTheme.textTheme.small,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                );
+              },
             ),
           ),
         ),
