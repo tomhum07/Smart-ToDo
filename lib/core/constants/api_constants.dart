@@ -25,12 +25,10 @@ class ApiConstants {
   static String vietnamHolidaysUrl(int year) =>
       '$nagerDateBaseUrl/PublicHolidays/$year/VN';
 
-  // --- .NET Web API (Deploy Render + Supabase PostgreSQL) ---
-  // Mặc định trỏ về 10.0.2.2:8080 để test local trên Android Emulator;
-  // đổi sang URL HTTPS của Render (VD: https://smart-todo-api.onrender.com) trước khi build APK release!
+  // --- .NET Web API (Deploy Render) ---
   static const String dotnetBaseUrl = String.fromEnvironment(
     'DOTNET_API_URL',
-    defaultValue: 'http://10.0.2.2:8080',
+    defaultValue: 'https://smart-todo-zkzs.onrender.com',
   );
 
   static bool get isDotNetConfigured =>

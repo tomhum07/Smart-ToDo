@@ -12,7 +12,8 @@ class WorkspaceApiService {
   WorkspaceApiService({http.Client? client})
       : _client = client ?? http.Client();
 
-  static const Duration _timeout = Duration(seconds: 20);
+  // Render Free tier có thể mất 50s+ để khởi động lại (cold start) sau khi spin down
+  static const Duration _timeout = Duration(seconds: 90);
   static const Map<String, String> _jsonHeaders = {
     'Content-Type': 'application/json',
   };

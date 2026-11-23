@@ -58,23 +58,55 @@ app.Run();
 
 static string BuildNpgsqlConnectionString(string raw)
 {
-    var trimmed = raw.Trim();
+    var trimmed = raw.Trim().Trim('"', '\'');
     if (!trimmed.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) &&
         !trimmed.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
     {
         return trimmed;
     }
 
-    var uri = new Uri(trimmed);
-    var userInfo = uri.UserInfo.Split(':', 2);
-    var username = Uri.UnescapeDataString(userInfo[0]);
-    var password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : string.Empty;
+    // Tự tách thủ công theo dấu '@' CUỐI CÙNG để không bị lỗi UriFormatException
+    // ngay cả khi mật khẩu Supabase chứa ký tự đặc biệt (@, #, ?, :, / ...)
+    var schemeEnd = trimmed.IndexOf("://", StringComparison.Ordinal);
+    var remainder = trimmed[(schemeEnd + 3)..];
+
+    var lastAt = remainder.LastIndexOf('@');
+    if (lastAt < 0)
+    {
+        throw new InvalidOperationException(
+            "DATABASE_URL thiếu phần user:password@host.");
+    }
+
+    var userInfoPart = remainder[..lastAt];
+    var hostAndDbPart = remainder[(lastAt + 1)..];
+
+    var firstColon = userInfoPart.IndexOf(':');
+    var username = firstColon >= 0
+        ? Uri.UnescapeDataString(userInfoPart[..firstColon])
+        : Uri.UnescapeDataString(userInfoPart);
+    var password = firstColon >= 0
+        ? Uri.UnescapeDataString(userInfoPart[(firstColon + 1)..])
+        : string.Empty;
+
+    // Tách query string (nếu có ?sslmode=...)
+    var queryIndex = hostAndDbPart.IndexOf('?');
+    var hostPath = queryIndex >= 0 ? hostAndDbPart[..queryIndex] : hostAndDbPart;
+
+    var slashIndex = hostPath.IndexOf('/');
+    var hostPort = slashIndex >= 0 ? hostPath[..slashIndex] : hostPath;
+    var database = slashIndex >= 0 ? hostPath[(slashIndex + 1)..] : "postgres";
+
+    var portColon = hostPort.LastIndexOf(':');
+    var host = portColon >= 0 ? hostPort[..portColon] : hostPort;
+    var port = portColon >= 0 && int.TryParse(hostPort[(portColon + 1)..], out var parsedPort)
+        ? parsedPort
+        : 5432;
 
     var csBuilder = new NpgsqlConnectionStringBuilder
     {
-        Host = uri.Host,
-        Port = uri.Port > 0 ? uri.Port : 5432,
-        Database = uri.AbsolutePath.TrimStart('/'),
+        Host = host,
+        Port = port,
+        Database = string.IsNullOrWhiteSpace(database) ? "postgres" : database,
         Username = username,
         Password = password,
         SslMode = SslMode.Require,

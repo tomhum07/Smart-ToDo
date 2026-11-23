@@ -27,12 +27,14 @@ class DotNetApiService {
 
   DotNetApiService({http.Client? client}) : _client = client ?? http.Client();
 
+  static const Duration _timeout = Duration(seconds: 90);
+
   /// Kiểm tra trạng thái hoạt động của server .NET.
   Future<bool> checkHealth() async {
     _ensureConfigured();
     final response = await _client
         .get(Uri.parse(ApiConstants.dotnetHealthUrl))
-        .timeout(const Duration(seconds: 10));
+        .timeout(_timeout);
     return response.statusCode == 200;
   }
 
@@ -53,7 +55,7 @@ class DotNetApiService {
             'items': items,
           }),
         )
-        .timeout(const Duration(seconds: 15));
+        .timeout(_timeout);
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
       final data =
@@ -72,7 +74,7 @@ class DotNetApiService {
     final cleaned = code.trim().toUpperCase();
     final response = await _client
         .get(Uri.parse(ApiConstants.dotnetShareByCodeUrl(cleaned)))
-        .timeout(const Duration(seconds: 15));
+        .timeout(_timeout);
 
     if (response.statusCode == 200) {
       return jsonDecode(utf8.decode(response.bodyBytes))
@@ -93,7 +95,7 @@ class DotNetApiService {
     final cleaned = code.trim().toUpperCase();
     final response = await _client
         .delete(Uri.parse(ApiConstants.dotnetShareByCodeUrl(cleaned)))
-        .timeout(const Duration(seconds: 15));
+        .timeout(_timeout);
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('Xóa mã chia sẻ thất bại (${response.statusCode}).');
