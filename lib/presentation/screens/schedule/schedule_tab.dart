@@ -296,11 +296,11 @@ class _ScheduleTabState extends State<ScheduleTab> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
         heroTag: 'schedule_add_btn',
+        tooltip: 'Thêm lịch',
         onPressed: () => Navigator.pushNamed(context, AppRoutes.scheduleForm),
-        icon: const Icon(LucideIcons.plus),
-        label: const Text('Thêm lịch'),
+        child: const Icon(LucideIcons.plus),
       ),
     );
   }

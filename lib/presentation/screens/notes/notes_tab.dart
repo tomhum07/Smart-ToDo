@@ -118,11 +118,11 @@ class _NotesTabState extends State<NotesTab> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
         heroTag: 'notes_add_btn',
+        tooltip: 'Ghi chú mới',
         onPressed: () => Navigator.pushNamed(context, AppRoutes.noteEditor),
-        icon: const Icon(LucideIcons.plus),
-        label: const Text('Ghi chú mới'),
+        child: const Icon(LucideIcons.plus),
       ),
     );
   }
@@ -142,7 +142,7 @@ class _NotesTabState extends State<NotesTab> {
             Text(
               hasFilter
                   ? 'Không tìm thấy ghi chú phù hợp.'
-                  : 'Chưa có ghi chú nào.\nBấm "Ghi chú mới" để tạo thẻ ghi chú đầu tiên!',
+                  : 'Chưa có ghi chú nào.\nBấm nút + để tạo thẻ ghi chú đầu tiên!',
               textAlign: TextAlign.center,
             ),
             if (hasFilter) ...[

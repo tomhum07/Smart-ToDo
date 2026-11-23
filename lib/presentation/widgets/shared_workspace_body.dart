@@ -18,16 +18,10 @@ class SharedWorkspaceBody extends StatefulWidget {
 
   const SharedWorkspaceBody({super.key, required this.selectedDate});
 
-  @override
-  State<SharedWorkspaceBody> createState() => _SharedWorkspaceBodyState();
-}
-
-class _SharedWorkspaceBodyState extends State<SharedWorkspaceBody> {
-  bool _onlyMyTasks = false;
-
-  Future<void> _showAddScheduleDialog(
+  static Future<void> showAddScheduleDialog(
     BuildContext context,
     WorkspaceOverview overview,
+    DateTime selectedDate,
   ) async {
     final titleCtrl = TextEditingController();
     final locationCtrl = TextEditingController();
@@ -48,7 +42,7 @@ class _SharedWorkspaceBodyState extends State<SharedWorkspaceBody> {
             return ShadDialog(
               title: const Text('Thêm Mục lớn chung'),
               description: Text(
-                'Ngày ${DateFormatter.formatDate(widget.selectedDate)} • ${overview.workspace.name}',
+                'Ngày ${DateFormatter.formatDate(selectedDate)} • ${overview.workspace.name}',
               ),
               actions: [
                 ShadButton.outline(
@@ -66,7 +60,7 @@ class _SharedWorkspaceBodyState extends State<SharedWorkspaceBody> {
                             await context.read<WorkspaceProvider>().addSchedule(
                                   workspaceId: overview.workspace.id,
                                   title: titleCtrl.text.trim(),
-                                  date: widget.selectedDate,
+                                  date: selectedDate,
                                   isRecurring: isRecurring,
                                   startTime: fmt(startTime),
                                   endTime: fmt(endTime),
@@ -99,6 +93,10 @@ class _SharedWorkspaceBodyState extends State<SharedWorkspaceBody> {
                       children: [
                         Expanded(
                           child: ShadButton.outline(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
                             onPressed: () async {
                               final p = await showTimePicker(
                                 context: ctx,
@@ -106,12 +104,19 @@ class _SharedWorkspaceBodyState extends State<SharedWorkspaceBody> {
                               );
                               if (p != null) setModalState(() => startTime = p);
                             },
-                            child: Text('Từ: ${fmt(startTime)}'),
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text('Từ: ${fmt(startTime)}'),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: ShadButton.outline(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
                             onPressed: () async {
                               final p = await showTimePicker(
                                 context: ctx,
@@ -119,7 +124,10 @@ class _SharedWorkspaceBodyState extends State<SharedWorkspaceBody> {
                               );
                               if (p != null) setModalState(() => endTime = p);
                             },
-                            child: Text('Đến: ${fmt(endTime)}'),
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text('Đến: ${fmt(endTime)}'),
+                            ),
                           ),
                         ),
                       ],
@@ -158,7 +166,7 @@ class _SharedWorkspaceBodyState extends State<SharedWorkspaceBody> {
     noteCtrl.dispose();
   }
 
-  Future<void> _showAddTaskDialog(
+  static Future<void> showAddTaskDialog(
     BuildContext context,
     WorkspaceOverview overview, {
     String? scheduleId,
@@ -283,9 +291,10 @@ class _SharedWorkspaceBodyState extends State<SharedWorkspaceBody> {
     descCtrl.dispose();
   }
 
-  Future<void> _showAddNoteDialog(
+  static Future<void> showAddNoteDialog(
     BuildContext context,
     WorkspaceOverview overview,
+    DateTime selectedDate,
   ) async {
     final titleCtrl = TextEditingController();
     final contentCtrl = TextEditingController();
@@ -299,7 +308,7 @@ class _SharedWorkspaceBodyState extends State<SharedWorkspaceBody> {
             return ShadDialog(
               title: const Text('Ghi chú chung theo ngày'),
               description: Text(
-                'Ngày ${DateFormatter.formatDate(widget.selectedDate)}',
+                'Ngày ${DateFormatter.formatDate(selectedDate)}',
               ),
               actions: [
                 ShadButton.outline(
@@ -316,7 +325,7 @@ class _SharedWorkspaceBodyState extends State<SharedWorkspaceBody> {
                             final auth = context.read<AuthProvider>();
                             await context.read<WorkspaceProvider>().addNote(
                                   workspaceId: overview.workspace.id,
-                                  date: widget.selectedDate,
+                                  date: selectedDate,
                                   title: titleCtrl.text.trim(),
                                   content: contentCtrl.text.trim(),
                                   authorName: auth.displayName,
@@ -358,6 +367,44 @@ class _SharedWorkspaceBodyState extends State<SharedWorkspaceBody> {
     titleCtrl.dispose();
     contentCtrl.dispose();
   }
+
+  @override
+  State<SharedWorkspaceBody> createState() => _SharedWorkspaceBodyState();
+}
+
+class _SharedWorkspaceBodyState extends State<SharedWorkspaceBody> {
+  bool _onlyMyTasks = false;
+
+  Future<void> _showAddScheduleDialog(
+    BuildContext context,
+    WorkspaceOverview overview,
+  ) =>
+      SharedWorkspaceBody.showAddScheduleDialog(
+        context,
+        overview,
+        widget.selectedDate,
+      );
+
+  Future<void> _showAddTaskDialog(
+    BuildContext context,
+    WorkspaceOverview overview, {
+    String? scheduleId,
+  }) =>
+      SharedWorkspaceBody.showAddTaskDialog(
+        context,
+        overview,
+        scheduleId: scheduleId,
+      );
+
+  Future<void> _showAddNoteDialog(
+    BuildContext context,
+    WorkspaceOverview overview,
+  ) =>
+      SharedWorkspaceBody.showAddNoteDialog(
+        context,
+        overview,
+        widget.selectedDate,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -414,6 +461,7 @@ class _SharedWorkspaceBodyState extends State<SharedWorkspaceBody> {
     return RefreshIndicator(
       onRefresh: () => wsProvider.loadOverview(overview.workspace.id),
       child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 96),
         children: [
           // Thanh thông tin mã mời & thành viên nhóm

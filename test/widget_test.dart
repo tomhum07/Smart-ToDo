@@ -21,13 +21,13 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     // Tab 1: Lịch & Việc (hợp nhất Mục lớn + Việc nhỏ + Việc khác)
-    expect(find.text('Thêm mới'), findsOneWidget);
+    expect(find.byTooltip('Thêm mới'), findsOneWidget);
 
     // Tab 2: Ghi chú
     await tester.tap(find.text('Ghi chú'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('Ghi chú mới'), findsOneWidget);
+    expect(find.byTooltip('Ghi chú mới'), findsOneWidget);
 
     // Tab 3: Thống kê
     await tester.tap(find.text('Thống kê'));

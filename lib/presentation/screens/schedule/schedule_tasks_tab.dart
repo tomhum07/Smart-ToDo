@@ -26,8 +26,8 @@ class ScheduleTasksTab extends StatefulWidget {
 class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
+  final ValueNotifier<bool> _showScrollToTop = ValueNotifier<bool>(false);
 
-  bool _showScrollToTop = false;
   final Set<String> _expandedScheduleIds = <String>{};
 
   @override
@@ -38,8 +38,8 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
 
   void _onScroll() {
     final shouldShow = _scrollController.offset > 220;
-    if (shouldShow != _showScrollToTop) {
-      setState(() => _showScrollToTop = shouldShow);
+    if (shouldShow != _showScrollToTop.value) {
+      _showScrollToTop.value = shouldShow;
     }
   }
 
@@ -47,6 +47,7 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
   void dispose() {
     _searchController.dispose();
     _scrollController.dispose();
+    _showScrollToTop.dispose();
     super.dispose();
   }
 
@@ -131,6 +132,97 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
   }
 
   void _showAddOptionsSheet() {
+    final scheduleProvider = context.read<ScheduleProvider>();
+    final activeWorkspace = scheduleProvider.activeWorkspace;
+
+    // Nếu đang ở Không gian chung → mở menu thêm trực tiếp vào Không gian chung
+    if (!activeWorkspace.isPersonal) {
+      final overview = context.read<WorkspaceProvider>().activeOverview;
+      if (overview == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Đang tải dữ liệu Không gian chung, vui lòng thử lại sau giây lát.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      final selectedDate = scheduleProvider.selectedDate;
+      showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        builder: (ctx) {
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Text(
+                      'Thêm vào nhóm: ${overview.workspace.name}',
+                      style: ShadTheme.of(ctx).textTheme.small.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(LucideIcons.calendarPlus),
+                    title: const Text('Thêm Mục lớn chung'),
+                    subtitle: const Text(
+                      'Lịch họp / môn học chung cho tất cả thành viên',
+                    ),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      SharedWorkspaceBody.showAddScheduleDialog(
+                        context,
+                        overview,
+                        selectedDate,
+                      );
+                    },
+                  ),
+                  const Divider(height: 8),
+                  ListTile(
+                    leading: const Icon(LucideIcons.userPlus),
+                    title: const Text('Giao Công việc nhóm'),
+                    subtitle: const Text(
+                      'Tạo việc và phân công cho thành viên trong nhóm',
+                    ),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      SharedWorkspaceBody.showAddTaskDialog(context, overview);
+                    },
+                  ),
+                  const Divider(height: 8),
+                  ListTile(
+                    leading: const Icon(LucideIcons.stickyNote),
+                    title: const Text('Thêm Ghi chú chung'),
+                    subtitle: const Text(
+                      'Lưu ghi chú chia sẻ theo ngày cho cả nhóm',
+                    ),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      SharedWorkspaceBody.showAddNoteDialog(
+                        context,
+                        overview,
+                        selectedDate,
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+      return;
+    }
+
+    // Không gian Cá nhân
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -535,32 +627,44 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
 
           // 4. Nội dung theo Workspace đang chọn (Cá nhân hoặc Không gian Chia sẻ Nhóm)
           Expanded(
-            child: !activeWorkspace.isPersonal
-                ? SharedWorkspaceBody(selectedDate: selectedDate)
-                : (scheduleProvider.isLoading && taskProvider.isLoading)
-                ? const Center(child: CircularProgressIndicator())
-                : ListView(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
-                    children: [
-                      Text(
-                        '${DateFormatter.dayOfWeekLabel(scheduleProvider.selectedDayOfWeek)}, ${DateFormatter.formatDate(selectedDate)} (${daySchedules.length} mục lớn)',
-                        style: shadTheme.textTheme.small.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      if (daySchedules.isEmpty)
-                        ShadCard(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            child: Text(
-                              'Chưa có mục lớn nào cho ${DateFormatter.dayOfWeekLabel(scheduleProvider.selectedDayOfWeek)}. Bấm "Thêm mới" để tạo lịch học / sự kiện!',
-                              textAlign: TextAlign.center,
-                              style: shadTheme.textTheme.muted,
-                            ),
-                          ),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              child: !activeWorkspace.isPersonal
+                  ? SharedWorkspaceBody(
+                      key: ValueKey('ws_${activeWorkspace.id}'),
+                      selectedDate: selectedDate,
+                    )
+                  : (scheduleProvider.isLoading && taskProvider.isLoading)
+                      ? const Center(
+                          key: ValueKey('personal_loading'),
+                          child: CircularProgressIndicator(),
                         )
+                      : ListView(
+                          key: const ValueKey('personal_list'),
+                          controller: _scrollController,
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
+                          children: [
+                            Text(
+                              '${DateFormatter.dayOfWeekLabel(scheduleProvider.selectedDayOfWeek)}, ${DateFormatter.formatDate(selectedDate)} (${daySchedules.length} mục lớn)',
+                              style: shadTheme.textTheme.small.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            if (daySchedules.isEmpty)
+                              ShadCard(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  child: Text(
+                                    'Chưa có mục lớn nào cho ${DateFormatter.dayOfWeekLabel(scheduleProvider.selectedDayOfWeek)}. Bấm nút "+" để tạo lịch học / sự kiện!',
+                                    textAlign: TextAlign.center,
+                                    style: shadTheme.textTheme.muted,
+                                  ),
+                                ),
+                              )
                       else
                         ...daySchedules.map((schedule) {
                           final childTasks =
@@ -650,29 +754,36 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
                         }),
                     ],
                   ),
+            ),
           ),
         ],
       ),
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (_showScrollToTop) ...[
-            FloatingActionButton.small(
-              heroTag: 'unified_scroll_top',
-              onPressed: () => _scrollController.animateTo(
-                0,
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeOut,
-              ),
-              child: const Icon(LucideIcons.arrowUp, size: 18),
-            ),
-            const SizedBox(height: 8),
-          ],
-          FloatingActionButton.extended(
+          ValueListenableBuilder<bool>(
+            valueListenable: _showScrollToTop,
+            builder: (context, show, _) {
+              if (!show) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: FloatingActionButton.small(
+                  heroTag: 'unified_scroll_top',
+                  onPressed: () => _scrollController.animateTo(
+                    0,
+                    duration: const Duration(milliseconds: 280),
+                    curve: Curves.easeOut,
+                  ),
+                  child: const Icon(LucideIcons.arrowUp, size: 18),
+                ),
+              );
+            },
+          ),
+          FloatingActionButton(
             heroTag: 'unified_add_btn',
+            tooltip: 'Thêm mới',
             onPressed: _showAddOptionsSheet,
-            icon: const Icon(LucideIcons.plus),
-            label: const Text('Thêm mới'),
+            child: const Icon(LucideIcons.plus),
           ),
         ],
       ),
@@ -708,165 +819,154 @@ class _ScheduleParentCard extends StatelessWidget {
         ? shadTheme.colorScheme.primary
         : AppColors.fromHex(schedule.colorHex);
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: ShadCard(
-        padding: EdgeInsets.zero,
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                width: 6,
-                decoration: BoxDecoration(
-                  color: accentColor,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(12),
-                    bottomLeft: Radius.circular(12),
-                  ),
+    return RepaintBoundary(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: ShadCard(
+          padding: EdgeInsets.zero,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(11),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border(
+                  left: BorderSide(color: accentColor, width: 6),
                 ),
               ),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    InkWell(
-                      onTap: onOpenDetail,
-                      borderRadius: const BorderRadius.only(
-                        topRight: Radius.circular(12),
-                        bottomRight: Radius.circular(12),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  InkWell(
+                    onTap: onOpenDetail,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              ShadBadge.secondary(
+                                child: Text(
+                                  '${schedule.startTime} - ${schedule.endTime}',
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              ShadBadge.outline(
+                                child: Text(
+                                  childTasks.isEmpty
+                                      ? '0 việc nhỏ'
+                                      : '$completed/${childTasks.length} việc',
+                                ),
+                              ),
+                              const Spacer(),
+                              IconButton(
+                                tooltip: 'Thêm việc nhỏ',
+                                visualDensity: VisualDensity.compact,
+                                onPressed: onAddSubtask,
+                                icon: const Icon(LucideIcons.plus, size: 17),
+                              ),
+                              IconButton(
+                                tooltip: isExpanded
+                                    ? 'Thu gọn việc nhỏ'
+                                    : 'Mở rộng việc nhỏ',
+                                visualDensity: VisualDensity.compact,
+                                onPressed: onToggleExpand,
+                                icon: Icon(
+                                  isExpanded
+                                      ? LucideIcons.chevronUp
+                                      : LucideIcons.chevronDown,
+                                  size: 18,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            schedule.title,
+                            style: shadTheme.textTheme.p.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          if (schedule.location.isNotEmpty) ...[
+                            const SizedBox(height: 3),
                             Row(
                               children: [
-                                ShadBadge.secondary(
+                                const Icon(LucideIcons.mapPin, size: 13),
+                                const SizedBox(width: 4),
+                                Expanded(
                                   child: Text(
-                                    '${schedule.startTime} - ${schedule.endTime}',
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                ShadBadge.outline(
-                                  child: Text(
-                                    childTasks.isEmpty
-                                        ? '0 việc nhỏ'
-                                        : '$completed/${childTasks.length} việc',
-                                  ),
-                                ),
-                                const Spacer(),
-                                IconButton(
-                                  tooltip: 'Thêm việc nhỏ',
-                                  visualDensity: VisualDensity.compact,
-                                  onPressed: onAddSubtask,
-                                  icon: const Icon(LucideIcons.plus, size: 17),
-                                ),
-                                IconButton(
-                                  tooltip: isExpanded
-                                      ? 'Thu gọn việc nhỏ'
-                                      : 'Mở rộng việc nhỏ',
-                                  visualDensity: VisualDensity.compact,
-                                  onPressed: onToggleExpand,
-                                  icon: Icon(
-                                    isExpanded
-                                        ? LucideIcons.chevronUp
-                                        : LucideIcons.chevronDown,
-                                    size: 18,
+                                    schedule.location,
+                                    style: shadTheme.textTheme.muted,
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 6),
-                            Text(
-                              schedule.title,
-                              style: shadTheme.textTheme.p.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            if (schedule.location.isNotEmpty) ...[
-                              const SizedBox(height: 3),
-                              Row(
-                                children: [
-                                  const Icon(LucideIcons.mapPin, size: 13),
-                                  const SizedBox(width: 4),
-                                  Expanded(
-                                    child: Text(
-                                      schedule.location,
-                                      style: shadTheme.textTheme.muted,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
                           ],
-                        ),
+                        ],
                       ),
                     ),
-                    if (isExpanded) ...[
-                      const Divider(height: 1),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(8, 6, 12, 10),
-                        child: childTasks.isEmpty
-                            ? Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
-                                  vertical: 6,
-                                ),
-                                child: Text(
-                                  'Chưa có việc nhỏ nào. Bấm "+" để thêm.',
-                                  style: shadTheme.textTheme.muted,
-                                ),
-                              )
-                            : Column(
-                                children: childTasks.map((task) {
-                                  final isDone = task.isCompleted;
-                                  return AnimatedOpacity(
-                                    duration: const Duration(milliseconds: 180),
-                                    opacity: isDone ? 0.48 : 1.0,
-                                    child: Row(
-                                      children: [
-                                        Checkbox(
-                                          visualDensity: VisualDensity.compact,
-                                          value: isDone,
-                                          onChanged: (_) => onToggleTask(task),
-                                        ),
-                                        Expanded(
-                                          child: Text(
-                                            task.title,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: shadTheme.textTheme.small
-                                                .copyWith(
-                                              decoration: isDone
-                                                  ? TextDecoration.lineThrough
-                                                  : null,
-                                            ),
-                                          ),
-                                        ),
-                                        if (task.dueDate != null)
-                                          Text(
-                                            DateFormatter.formatTime(
-                                              DateTime
-                                                  .fromMillisecondsSinceEpoch(
-                                                task.dueDate!,
-                                              ),
-                                            ),
-                                            style: shadTheme.textTheme.muted
-                                                .copyWith(fontSize: 11),
-                                          ),
-                                      ],
-                                    ),
-                                  );
-                                }).toList(),
+                  ),
+                  if (isExpanded) ...[
+                    const Divider(height: 1),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 6, 12, 10),
+                      child: childTasks.isEmpty
+                          ? Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 6,
                               ),
-                      ),
-                    ],
+                              child: Text(
+                                'Chưa có việc nhỏ nào. Bấm "+" để thêm.',
+                                style: shadTheme.textTheme.muted,
+                              ),
+                            )
+                          : Column(
+                              children: childTasks.map((task) {
+                                final isDone = task.isCompleted;
+                                return AnimatedOpacity(
+                                  duration: const Duration(milliseconds: 180),
+                                  opacity: isDone ? 0.48 : 1.0,
+                                  child: Row(
+                                    children: [
+                                      Checkbox(
+                                        visualDensity: VisualDensity.compact,
+                                        value: isDone,
+                                        onChanged: (_) => onToggleTask(task),
+                                      ),
+                                      Expanded(
+                                        child: Text(
+                                          task.title,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: shadTheme.textTheme.small
+                                              .copyWith(
+                                            decoration: isDone
+                                                ? TextDecoration.lineThrough
+                                                : null,
+                                          ),
+                                        ),
+                                      ),
+                                      if (task.dueDate != null)
+                                        Text(
+                                          DateFormatter.formatTime(
+                                            DateTime
+                                                .fromMillisecondsSinceEpoch(
+                                              task.dueDate!,
+                                            ),
+                                          ),
+                                          style: shadTheme.textTheme.muted
+                                              .copyWith(fontSize: 11),
+                                        ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                    ),
                   ],
-                ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),

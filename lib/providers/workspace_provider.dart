@@ -11,6 +11,7 @@ class WorkspaceProvider extends ChangeNotifier {
   final WorkspaceApiService _api;
 
   List<WorkspaceSummary> _workspaces = [];
+  final Map<String, WorkspaceOverview> _overviewCache = {};
   WorkspaceOverview? _activeOverview;
   bool _isLoading = false;
   String? _errorMessage;
@@ -58,12 +59,23 @@ class WorkspaceProvider extends ChangeNotifier {
       return;
     }
 
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
+    // Hiển thị ngay dữ liệu đã cache để chuyển Workspace mượt 0ms, sau đó làm mới ngầm
+    final cached = _overviewCache[workspaceId];
+    if (cached != null) {
+      _activeOverview = cached;
+      _errorMessage = null;
+      notifyListeners();
+    } else {
+      _activeOverview = null;
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+    }
 
     try {
-      _activeOverview = await _api.getOverview(workspaceId);
+      final fresh = await _api.getOverview(workspaceId);
+      _overviewCache[workspaceId] = fresh;
+      _activeOverview = fresh;
     } catch (e) {
       _errorMessage = e.toString().replaceFirst('Exception: ', '');
     } finally {
@@ -113,6 +125,7 @@ class WorkspaceProvider extends ChangeNotifier {
     required String userUid,
   }) async {
     await _api.leaveWorkspace(workspaceId: workspaceId, userUid: userUid);
+    _overviewCache.remove(workspaceId);
     if (_activeOverview?.workspace.id == workspaceId) {
       _activeOverview = null;
     }
