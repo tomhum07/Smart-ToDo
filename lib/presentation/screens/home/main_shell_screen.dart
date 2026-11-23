@@ -40,6 +40,13 @@ class _MainShellScreenState extends State<MainShellScreen> {
     'Hồ sơ',
   ];
 
+  static const _tabs = <Widget>[
+    ScheduleTasksTab(),
+    NotesTab(),
+    StatsTab(),
+    ProfileTab(),
+  ];
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -131,7 +138,10 @@ class _MainShellScreenState extends State<MainShellScreen> {
     return OrientationBuilder(
       builder: (context, orientation) {
         final isLandscape = orientation == Orientation.landscape;
-        final bodyContent = _buildCurrentTab();
+        final bodyContent = IndexedStack(
+          index: _selectedIndex,
+          children: _tabs,
+        );
 
         return Scaffold(
           appBar: AppBar(
@@ -193,36 +203,27 @@ class _MainShellScreenState extends State<MainShellScreen> {
                     NavigationDestination(
                       icon: Icon(LucideIcons.calendarCheck2),
                       label: 'Lịch & Việc',
+                      tooltip: '',
                     ),
                     NavigationDestination(
                       icon: Icon(LucideIcons.stickyNote),
                       label: 'Ghi chú',
+                      tooltip: '',
                     ),
                     NavigationDestination(
                       icon: Icon(LucideIcons.chartColumn),
                       label: 'Thống kê',
+                      tooltip: '',
                     ),
                     NavigationDestination(
                       icon: Icon(LucideIcons.user),
                       label: 'Hồ sơ',
+                      tooltip: '',
                     ),
                   ],
                 ),
         );
       },
     );
-  }
-
-  Widget _buildCurrentTab() {
-    switch (_selectedIndex) {
-      case 0:
-        return const ScheduleTasksTab();
-      case 1:
-        return const NotesTab();
-      case 2:
-        return const StatsTab();
-      default:
-        return const ProfileTab();
-    }
   }
 }

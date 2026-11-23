@@ -213,15 +213,29 @@ class _ScheduleFormScreenState extends State<ScheduleFormScreen> {
                     children: [
                       Expanded(
                         child: ShadButton.outline(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
                           onPressed: () => _pickTime(isStart: true),
-                          child: Text('Bắt đầu: ${_formatTime(_startTime)}'),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text('Bắt đầu: ${_formatTime(_startTime)}'),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: ShadButton.outline(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
                           onPressed: () => _pickTime(isStart: false),
-                          child: Text('Kết thúc: ${_formatTime(_endTime)}'),
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text('Kết thúc: ${_formatTime(_endTime)}'),
+                          ),
                         ),
                       ),
                     ],

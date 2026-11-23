@@ -217,11 +217,11 @@ class _TasksTabState extends State<TasksTab> {
             ),
             const SizedBox(height: 8),
           ],
-          FloatingActionButton.extended(
+          FloatingActionButton(
             heroTag: 'tasks_add_btn',
+            tooltip: 'Thêm việc',
             onPressed: () => Navigator.pushNamed(context, AppRoutes.taskForm),
-            icon: const Icon(LucideIcons.plus),
-            label: const Text('Thêm việc'),
+            child: const Icon(LucideIcons.plus),
           ),
         ],
       ),

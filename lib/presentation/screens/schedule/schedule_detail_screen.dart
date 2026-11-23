@@ -374,14 +374,14 @@ class ScheduleDetailScreen extends StatelessWidget {
             }),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Thêm việc nhỏ',
         onPressed: () => Navigator.pushNamed(
           context,
           AppRoutes.taskForm,
           arguments: TaskFormArgs(initialScheduleId: schedule.id),
         ),
-        icon: const Icon(LucideIcons.plus),
-        label: const Text('Thêm việc nhỏ'),
+        child: const Icon(LucideIcons.plus),
       ),
     );
   }
