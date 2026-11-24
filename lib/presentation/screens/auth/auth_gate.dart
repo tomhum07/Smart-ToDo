@@ -7,30 +7,54 @@ import '../home/main_shell_screen.dart';
 import 'login_screen.dart';
 
 /// Cổng kiểm tra phiên đăng nhập tự động qua Firebase Auth authStateChanges().
-class AuthGate extends StatelessWidget {
+/// Cache stream trong StatefulWidget để không làm unmount LoginScreen khi AuthProvider notifyListeners.
+class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final authProvider = context.watch<AuthProvider>();
+  State<AuthGate> createState() => _AuthGateState();
+}
 
-    if (authProvider.isLocalGuestMode) {
+class _AuthGateState extends State<AuthGate> {
+  Stream<User?>? _authStream;
+
+  @override
+  void initState() {
+    super.initState();
+    final authProvider = context.read<AuthProvider>();
+    if (authProvider.isFirebaseReady) {
+      _authStream = authProvider.authStateChanges;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isLocalGuestMode =
+        context.select<AuthProvider, bool>((a) => a.isLocalGuestMode);
+    final isFirebaseReady =
+        context.select<AuthProvider, bool>((a) => a.isFirebaseReady);
+
+    if (isLocalGuestMode) {
       return const MainShellScreen();
     }
 
-    if (!authProvider.isFirebaseReady) {
+    if (!isFirebaseReady) {
       return const LoginScreen();
     }
 
+    final initialUser = context.read<AuthProvider>().currentUser;
+    _authStream ??= context.read<AuthProvider>().authStateChanges;
+
     return StreamBuilder<User?>(
-      stream: authProvider.authStateChanges,
+      stream: _authStream,
+      initialData: initialUser,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData &&
+            initialUser == null) {
+          return const LoginScreen();
         }
-        if (snapshot.hasData) {
+        if (snapshot.data != null) {
           return const MainShellScreen();
         }
         return const LoginScreen();

@@ -10,13 +10,19 @@ import '../../data/models/workspace_models.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/schedule_provider.dart';
 import '../../providers/workspace_provider.dart';
+import 'swipe_to_delete_tile.dart';
 
 /// Giao diện nội dung khi người dùng đang xem một Không gian Chia sẻ Nhóm (Shared Workspace).
 /// Hiển thị Mục lớn chung, Công việc nhỏ có phân công thành viên & Ghi chú chung theo ngày.
 class SharedWorkspaceBody extends StatefulWidget {
   final DateTime selectedDate;
+  final ScrollController? scrollController;
 
-  const SharedWorkspaceBody({super.key, required this.selectedDate});
+  const SharedWorkspaceBody({
+    super.key,
+    required this.selectedDate,
+    this.scrollController,
+  });
 
   static Future<void> showAddScheduleDialog(
     BuildContext context,
@@ -30,63 +36,44 @@ class SharedWorkspaceBody extends StatefulWidget {
     var endTime = const TimeOfDay(hour: 9, minute: 30);
     var isRecurring = false;
     var isSaving = false;
+    String? errorText;
 
     String fmt(TimeOfDay t) =>
         '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
-    await showShadDialog<void>(
+    await showModalBottomSheet<void>(
       context: context,
-      builder: (dialogCtx) {
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (sheetCtx) {
         return StatefulBuilder(
           builder: (ctx, setModalState) {
-            return ShadDialog(
-              title: const Text('Thêm Mục lớn chung'),
-              description: Text(
-                'Ngày ${DateFormatter.formatDate(selectedDate)} • ${overview.workspace.name}',
-              ),
-              actions: [
-                ShadButton.outline(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Hủy'),
-                ),
-                ShadButton(
-                  onPressed: isSaving
-                      ? null
-                      : () async {
-                          if (titleCtrl.text.trim().isEmpty) return;
-                          setModalState(() => isSaving = true);
-                          try {
-                            final auth = context.read<AuthProvider>();
-                            await context.read<WorkspaceProvider>().addSchedule(
-                                  workspaceId: overview.workspace.id,
-                                  title: titleCtrl.text.trim(),
-                                  date: selectedDate,
-                                  isRecurring: isRecurring,
-                                  startTime: fmt(startTime),
-                                  endTime: fmt(endTime),
-                                  location: locationCtrl.text.trim(),
-                                  note: noteCtrl.text.trim(),
-                                  createdByName: auth.displayName,
-                                );
-                            if (ctx.mounted) Navigator.pop(ctx);
-                          } finally {
-                            if (ctx.mounted) {
-                              setModalState(() => isSaving = false);
-                            }
-                          }
-                        },
-                  child: const Text('Thêm'),
-                ),
-              ],
-              child: Padding(
-                padding: const EdgeInsets.only(top: 12),
+            final shadTheme = ShadTheme.of(ctx);
+            final bottomInset = MediaQuery.viewInsetsOf(ctx).bottom;
+
+            return Padding(
+              padding: EdgeInsets.fromLTRB(18, 4, 18, 18 + bottomInset),
+              child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    Text(
+                      'Thêm Mục lớn chung',
+                      style: shadTheme.textTheme.h4,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Ngày ${DateFormatter.formatDate(selectedDate)} • ${overview.workspace.name}',
+                      style: shadTheme.textTheme.muted,
+                    ),
+                    const SizedBox(height: 14),
                     ShadInput(
                       controller: titleCtrl,
-                      placeholder: const Text('VD: Thuyết trình Lập trình Mobile'),
+                      placeholder:
+                          const Text('VD: Thuyết trình Lập trình Mobile'),
+                      autofocus: true,
                     ),
                     const SizedBox(height: 10),
                     Row(
@@ -95,12 +82,17 @@ class SharedWorkspaceBody extends StatefulWidget {
                           child: ShadButton.outline(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 10,
-                              vertical: 8,
+                              vertical: 10,
                             ),
                             onPressed: () async {
                               final p = await showTimePicker(
                                 context: ctx,
                                 initialTime: startTime,
+                                builder: (c, child) => MediaQuery(
+                                  data: MediaQuery.of(c)
+                                      .copyWith(alwaysUse24HourFormat: true),
+                                  child: child!,
+                                ),
                               );
                               if (p != null) setModalState(() => startTime = p);
                             },
@@ -110,17 +102,22 @@ class SharedWorkspaceBody extends StatefulWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: ShadButton.outline(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 10,
-                              vertical: 8,
+                              vertical: 10,
                             ),
                             onPressed: () async {
                               final p = await showTimePicker(
                                 context: ctx,
                                 initialTime: endTime,
+                                builder: (c, child) => MediaQuery(
+                                  data: MediaQuery.of(c)
+                                      .copyWith(alwaysUse24HourFormat: true),
+                                  child: child!,
+                                ),
                               );
                               if (p != null) setModalState(() => endTime = p);
                             },
@@ -153,6 +150,93 @@ class SharedWorkspaceBody extends StatefulWidget {
                         ),
                       ],
                     ),
+                    if (errorText != null) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        errorText!,
+                        style: const TextStyle(
+                          color: Color(0xFFDC2626),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ShadButton.outline(
+                            onPressed:
+                                isSaving ? null : () => Navigator.pop(ctx),
+                            child: const Text('Hủy'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 2,
+                          child: ShadButton(
+                            onPressed: isSaving
+                                ? null
+                                : () async {
+                                    if (titleCtrl.text.trim().isEmpty) {
+                                      setModalState(
+                                        () => errorText =
+                                            'Vui lòng nhập tên mục lớn.',
+                                      );
+                                      return;
+                                    }
+                                    setModalState(() {
+                                      isSaving = true;
+                                      errorText = null;
+                                    });
+                                    try {
+                                      final auth = context.read<AuthProvider>();
+                                      await context
+                                          .read<WorkspaceProvider>()
+                                          .addSchedule(
+                                            workspaceId: overview.workspace.id,
+                                            title: titleCtrl.text.trim(),
+                                            date: selectedDate,
+                                            isRecurring: isRecurring,
+                                            startTime: fmt(startTime),
+                                            endTime: fmt(endTime),
+                                            location: locationCtrl.text.trim(),
+                                            note: noteCtrl.text.trim(),
+                                            createdByName: auth.displayName,
+                                          );
+                                      HapticFeedback.lightImpact();
+                                      if (ctx.mounted) Navigator.pop(ctx);
+                                    } catch (e) {
+                                      if (ctx.mounted) {
+                                        setModalState(() {
+                                          isSaving = false;
+                                          errorText = e
+                                              .toString()
+                                              .replaceFirst('Exception: ', '');
+                                        });
+                                      }
+                                    }
+                                  },
+                            child: isSaving
+                                ? const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      SizedBox(
+                                        width: 15,
+                                        height: 15,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text('Đang thêm...'),
+                                    ],
+                                  )
+                                : const Text('Thêm mục lớn'),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -174,74 +258,186 @@ class SharedWorkspaceBody extends StatefulWidget {
     final titleCtrl = TextEditingController();
     final descCtrl = TextEditingController();
     var priority = 1;
+    DateTime? dueDate;
+    var remindBeforeMinutes = 10;
     WorkspaceMember? selectedAssignee =
         overview.members.isNotEmpty ? overview.members.first : null;
     var isSaving = false;
+    String? errorText;
 
-    await showShadDialog<void>(
+    await showModalBottomSheet<void>(
       context: context,
-      builder: (dialogCtx) {
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (sheetCtx) {
         return StatefulBuilder(
           builder: (ctx, setModalState) {
             final shadTheme = ShadTheme.of(ctx);
-            return ShadDialog(
-              title: const Text('Giao Công việc nhóm'),
-              description: const Text(
-                'Phân công việc nhỏ cho thành viên trong Workspace.',
+            final bottomInset = MediaQuery.viewInsetsOf(ctx).bottom;
+
+            Future<void> pickDueDate() async {
+              FocusScope.of(ctx).unfocus();
+              final now = DateTime.now();
+              final initial = dueDate ?? now.add(const Duration(hours: 1));
+              final pickedDate = await showDatePicker(
+                context: ctx,
+                initialDate: initial,
+                firstDate: DateTime(now.year - 1),
+                lastDate: DateTime(now.year + 5),
+              );
+              if (pickedDate == null || !ctx.mounted) return;
+              final pickedTime = await showTimePicker(
+                context: ctx,
+                initialTime: TimeOfDay.fromDateTime(initial),
+                builder: (c, child) => MediaQuery(
+                  data: MediaQuery.of(c).copyWith(alwaysUse24HourFormat: true),
+                  child: child!,
+                ),
+              );
+              if (!ctx.mounted) return;
+              final time = pickedTime ?? const TimeOfDay(hour: 23, minute: 59);
+              setModalState(() {
+                dueDate = DateTime(
+                  pickedDate.year,
+                  pickedDate.month,
+                  pickedDate.day,
+                  time.hour,
+                  time.minute,
+                );
+              });
+            }
+
+            return ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(ctx).height * 0.88,
               ),
-              actions: [
-                ShadButton.outline(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Hủy'),
-                ),
-                ShadButton(
-                  onPressed: isSaving
-                      ? null
-                      : () async {
-                          if (titleCtrl.text.trim().isEmpty) return;
-                          setModalState(() => isSaving = true);
-                          try {
-                            await context.read<WorkspaceProvider>().addTask(
-                                  workspaceId: overview.workspace.id,
-                                  scheduleId: scheduleId,
-                                  title: titleCtrl.text.trim(),
-                                  description: descCtrl.text.trim(),
-                                  priority: priority,
-                                  assigneeUid: selectedAssignee?.userUid,
-                                  assigneeName: selectedAssignee?.displayName,
-                                );
-                            if (ctx.mounted) Navigator.pop(ctx);
-                          } finally {
-                            if (ctx.mounted) {
-                              setModalState(() => isSaving = false);
-                            }
-                          }
-                        },
-                  child: const Text('Giao việc'),
-                ),
-              ],
-              child: Material(
-                type: MaterialType.transparency,
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 12),
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(18, 4, 18, 18 + bottomInset),
+                child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      Text(
+                        'Giao Công việc nhóm',
+                        style: shadTheme.textTheme.h4,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Phân công việc, đặt hạn chót & nhắc nhở cho thành viên.',
+                        style: shadTheme.textTheme.muted,
+                      ),
+                      const SizedBox(height: 14),
                       ShadInput(
                         controller: titleCtrl,
                         placeholder:
                             const Text('VD: Chuẩn bị slide thuyết trình'),
+                        autofocus: true,
                       ),
                       const SizedBox(height: 10),
                       ShadInput(
                         controller: descCtrl,
                         placeholder: const Text('Mô tả chi tiết (tùy chọn)'),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 14),
+                      Text(
+                        'Hạn chót (Deadline)',
+                        style: shadTheme.textTheme.small.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ShadButton.outline(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              onPressed: pickDueDate,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    LucideIcons.calendarClock,
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Flexible(
+                                    child: Text(
+                                      dueDate == null
+                                          ? 'Chọn ngày & giờ hạn chót'
+                                          : DateFormatter.formatDateTime(
+                                              dueDate!,
+                                            ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          if (dueDate != null) ...[
+                            const SizedBox(width: 6),
+                            ShadButton.ghost(
+                              padding: const EdgeInsets.all(8),
+                              onPressed: () =>
+                                  setModalState(() => dueDate = null),
+                              child: const Icon(LucideIcons.x, size: 16),
+                            ),
+                          ],
+                        ],
+                      ),
+                      AnimatedSize(
+                        duration: const Duration(milliseconds: 180),
+                        curve: Curves.easeOutCubic,
+                        alignment: Alignment.topCenter,
+                        child: dueDate == null
+                            ? const SizedBox.shrink()
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'Nhắc trước hạn chót',
+                                    style: shadTheme.textTheme.small.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 6,
+                                    children: const [
+                                      (0, 'Đúng giờ'),
+                                      (1, '1 phút'),
+                                      (5, '5 phút'),
+                                      (10, '10 phút'),
+                                      (15, '15 phút'),
+                                      (30, '30 phút'),
+                                      (60, '1 giờ'),
+                                    ].map((item) {
+                                      final (mins, label) = item;
+                                      return ChoiceChip(
+                                        label: Text(label),
+                                        selected: remindBeforeMinutes == mins,
+                                        onSelected: (_) => setModalState(
+                                          () => remindBeforeMinutes = mins,
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                ],
+                              ),
+                      ),
+                      const SizedBox(height: 14),
                       Text(
                         'Giao cho thành viên',
-                        style: shadTheme.textTheme.small,
+                        style: shadTheme.textTheme.small.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const SizedBox(height: 6),
                       Wrap(
@@ -249,7 +445,7 @@ class SharedWorkspaceBody extends StatefulWidget {
                         runSpacing: 6,
                         children: [
                           ChoiceChip(
-                            label: const Text('Chưa phân công'),
+                            label: const Text('Cả nhóm'),
                             selected: selectedAssignee == null,
                             onSelected: (_) =>
                                 setModalState(() => selectedAssignee = null),
@@ -264,8 +460,13 @@ class SharedWorkspaceBody extends StatefulWidget {
                           }),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      Text('Mức ưu tiên', style: shadTheme.textTheme.small),
+                      const SizedBox(height: 14),
+                      Text(
+                        'Mức ưu tiên',
+                        style: shadTheme.textTheme.small.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                       const SizedBox(height: 6),
                       Wrap(
                         spacing: 6,
@@ -273,10 +474,108 @@ class SharedWorkspaceBody extends StatefulWidget {
                           return ChoiceChip(
                             label: Text(AppColors.priorityLabel(p)),
                             selected: priority == p,
+                            avatar: CircleAvatar(
+                              radius: 4.5,
+                              backgroundColor: AppColors.priorityColor(p),
+                            ),
                             onSelected: (_) =>
                                 setModalState(() => priority = p),
                           );
                         }).toList(),
+                      ),
+                      if (errorText != null) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          errorText!,
+                          style: const TextStyle(
+                            color: Color(0xFFDC2626),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 18),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ShadButton.outline(
+                              onPressed:
+                                  isSaving ? null : () => Navigator.pop(ctx),
+                              child: const Text('Hủy'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            flex: 2,
+                            child: ShadButton(
+                              onPressed: isSaving
+                                  ? null
+                                  : () async {
+                                      if (titleCtrl.text.trim().isEmpty) {
+                                        setModalState(
+                                          () => errorText =
+                                              'Vui lòng nhập tiêu đề công việc.',
+                                        );
+                                        return;
+                                      }
+                                      setModalState(() {
+                                        isSaving = true;
+                                        errorText = null;
+                                      });
+                                      try {
+                                        await context
+                                            .read<WorkspaceProvider>()
+                                            .addTask(
+                                              workspaceId:
+                                                  overview.workspace.id,
+                                              scheduleId: scheduleId,
+                                              title: titleCtrl.text.trim(),
+                                              description: descCtrl.text.trim(),
+                                              priority: priority,
+                                              dueDate: dueDate
+                                                  ?.millisecondsSinceEpoch,
+                                              remindBeforeMinutes:
+                                                  remindBeforeMinutes,
+                                              assigneeUid:
+                                                  selectedAssignee?.userUid,
+                                              assigneeName:
+                                                  selectedAssignee?.displayName,
+                                            );
+                                        HapticFeedback.lightImpact();
+                                        if (ctx.mounted) Navigator.pop(ctx);
+                                      } catch (e) {
+                                        if (ctx.mounted) {
+                                          setModalState(() {
+                                            isSaving = false;
+                                            errorText = e
+                                                .toString()
+                                                .replaceFirst(
+                                                  'Exception: ',
+                                                  '',
+                                                );
+                                          });
+                                        }
+                                      }
+                                    },
+                              child: isSaving
+                                  ? const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        SizedBox(
+                                          width: 15,
+                                          height: 15,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        ),
+                                        SizedBox(width: 8),
+                                        Text('Đang giao việc...'),
+                                      ],
+                                    )
+                                  : const Text('Giao việc'),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -299,62 +598,129 @@ class SharedWorkspaceBody extends StatefulWidget {
     final titleCtrl = TextEditingController();
     final contentCtrl = TextEditingController();
     var isSaving = false;
+    String? errorText;
 
-    await showShadDialog<void>(
+    await showModalBottomSheet<void>(
       context: context,
-      builder: (dialogCtx) {
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (sheetCtx) {
         return StatefulBuilder(
           builder: (ctx, setModalState) {
-            return ShadDialog(
-              title: const Text('Ghi chú chung theo ngày'),
-              description: Text(
-                'Ngày ${DateFormatter.formatDate(selectedDate)}',
-              ),
-              actions: [
-                ShadButton.outline(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Hủy'),
-                ),
-                ShadButton(
-                  onPressed: isSaving
-                      ? null
-                      : () async {
-                          if (titleCtrl.text.trim().isEmpty) return;
-                          setModalState(() => isSaving = true);
-                          try {
-                            final auth = context.read<AuthProvider>();
-                            await context.read<WorkspaceProvider>().addNote(
-                                  workspaceId: overview.workspace.id,
-                                  date: selectedDate,
-                                  title: titleCtrl.text.trim(),
-                                  content: contentCtrl.text.trim(),
-                                  authorName: auth.displayName,
-                                );
-                            if (ctx.mounted) Navigator.pop(ctx);
-                          } finally {
-                            if (ctx.mounted) {
-                              setModalState(() => isSaving = false);
-                            }
-                          }
-                        },
-                  child: const Text('Lưu ghi chú'),
-                ),
-              ],
-              child: Padding(
-                padding: const EdgeInsets.only(top: 12),
+            final shadTheme = ShadTheme.of(ctx);
+            final bottomInset = MediaQuery.viewInsetsOf(ctx).bottom;
+
+            return Padding(
+              padding: EdgeInsets.fromLTRB(18, 4, 18, 18 + bottomInset),
+              child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    Text(
+                      'Ghi chú chung theo ngày',
+                      style: shadTheme.textTheme.h4,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Ngày ${DateFormatter.formatDate(selectedDate)}',
+                      style: shadTheme.textTheme.muted,
+                    ),
+                    const SizedBox(height: 14),
                     ShadInput(
                       controller: titleCtrl,
                       placeholder: const Text('Tiêu đề ghi chú nhóm'),
+                      autofocus: true,
                     ),
                     const SizedBox(height: 10),
                     ShadInput(
                       controller: contentCtrl,
                       placeholder: const Text('Nội dung...'),
                       maxLines: 3,
+                    ),
+                    if (errorText != null) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        errorText!,
+                        style: const TextStyle(
+                          color: Color(0xFFDC2626),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ShadButton.outline(
+                            onPressed:
+                                isSaving ? null : () => Navigator.pop(ctx),
+                            child: const Text('Hủy'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          flex: 2,
+                          child: ShadButton(
+                            onPressed: isSaving
+                                ? null
+                                : () async {
+                                    if (titleCtrl.text.trim().isEmpty) {
+                                      setModalState(
+                                        () => errorText =
+                                            'Vui lòng nhập tiêu đề ghi chú.',
+                                      );
+                                      return;
+                                    }
+                                    setModalState(() {
+                                      isSaving = true;
+                                      errorText = null;
+                                    });
+                                    try {
+                                      final auth = context.read<AuthProvider>();
+                                      await context
+                                          .read<WorkspaceProvider>()
+                                          .addNote(
+                                            workspaceId: overview.workspace.id,
+                                            date: selectedDate,
+                                            title: titleCtrl.text.trim(),
+                                            content: contentCtrl.text.trim(),
+                                            authorName: auth.displayName,
+                                          );
+                                      HapticFeedback.lightImpact();
+                                      if (ctx.mounted) Navigator.pop(ctx);
+                                    } catch (e) {
+                                      if (ctx.mounted) {
+                                        setModalState(() {
+                                          isSaving = false;
+                                          errorText = e
+                                              .toString()
+                                              .replaceFirst('Exception: ', '');
+                                        });
+                                      }
+                                    }
+                                  },
+                            child: isSaving
+                                ? const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      SizedBox(
+                                        width: 15,
+                                        height: 15,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                                      SizedBox(width: 8),
+                                      Text('Đang lưu...'),
+                                    ],
+                                  )
+                                : const Text('Lưu ghi chú'),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -372,8 +738,51 @@ class SharedWorkspaceBody extends StatefulWidget {
   State<SharedWorkspaceBody> createState() => _SharedWorkspaceBodyState();
 }
 
-class _SharedWorkspaceBodyState extends State<SharedWorkspaceBody> {
+class _SharedWorkspaceBodyState extends State<SharedWorkspaceBody>
+    with WidgetsBindingObserver {
   bool _onlyMyTasks = false;
+  WorkspaceProvider? _wsProvider;
+  String? _syncedWorkspaceId;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _ensureRealtimeSync();
+    });
+  }
+
+  void _ensureRealtimeSync() {
+    final activeWsId = context.read<ScheduleProvider>().activeWorkspace.id;
+    final uid = context.read<AuthProvider>().effectiveUserId;
+    _wsProvider = context.read<WorkspaceProvider>();
+    if (_syncedWorkspaceId != activeWsId) {
+      _syncedWorkspaceId = activeWsId;
+      _wsProvider!.startRealtimeSync(activeWsId, currentUserUid: uid);
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _wsProvider?.resumeRealtimeSync();
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      _wsProvider?.pauseRealtimeSync();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _wsProvider?.stopRealtimeSync(
+      onlyIfWorkspaceId: _syncedWorkspaceId,
+      notify: false,
+    );
+    super.dispose();
+  }
 
   Future<void> _showAddScheduleDialog(
     BuildContext context,
@@ -461,6 +870,7 @@ class _SharedWorkspaceBodyState extends State<SharedWorkspaceBody> {
     return RefreshIndicator(
       onRefresh: () => wsProvider.loadOverview(overview.workspace.id),
       child: ListView(
+        controller: widget.scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 96),
         children: [
@@ -477,8 +887,40 @@ class _SharedWorkspaceBodyState extends State<SharedWorkspaceBody> {
                     ),
                     const SizedBox(width: 6),
                     ShadBadge.outline(
-                      child: Text('${overview.members.length} thành viên'),
+                      child: Text('${overview.members.length} TV'),
                     ),
+                    if (wsProvider.isRealtimeActive) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF16A34A).withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.circle,
+                              size: 7,
+                              color: Color(0xFF16A34A),
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'Live',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF16A34A),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const Spacer(),
                     IconButton(
                       tooltip: 'Sao chép mã mời',
@@ -568,60 +1010,58 @@ class _SharedWorkspaceBodyState extends State<SharedWorkspaceBody> {
 
               return Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: ShadCard(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          ShadBadge.secondary(
-                            child: Text('${s.startTime} - ${s.endTime}'),
-                          ),
-                          const Spacer(),
-                          IconButton(
-                            tooltip: 'Giao việc nhỏ trong mục này',
-                            visualDensity: VisualDensity.compact,
-                            onPressed: () => _showAddTaskDialog(
-                              context,
-                              overview,
-                              scheduleId: s.id,
+                child: SwipeToDeleteTile(
+                  key: ValueKey('swipe_ws_sched_${s.id}'),
+                  onDelete: () => wsProvider.deleteSchedule(
+                    workspaceId: overview.workspace.id,
+                    scheduleId: s.id,
+                  ),
+                  child: ShadCard(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            ShadBadge.secondary(
+                              child: Text('${s.startTime} - ${s.endTime}'),
                             ),
-                            icon: const Icon(LucideIcons.userPlus, size: 16),
-                          ),
-                          IconButton(
-                            tooltip: 'Xóa mục lớn',
-                            visualDensity: VisualDensity.compact,
-                            onPressed: () => wsProvider.deleteSchedule(
-                              workspaceId: overview.workspace.id,
-                              scheduleId: s.id,
+                            const Spacer(),
+                            IconButton(
+                              tooltip: 'Giao việc nhỏ trong mục này',
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () => _showAddTaskDialog(
+                                context,
+                                overview,
+                                scheduleId: s.id,
+                              ),
+                              icon: const Icon(LucideIcons.userPlus, size: 16),
                             ),
-                            icon: const Icon(LucideIcons.trash2, size: 16),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        s.title,
-                        style: shadTheme.textTheme.p.copyWith(
-                          fontWeight: FontWeight.w700,
+                          ],
                         ),
-                      ),
-                      if (s.location.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(s.location, style: shadTheme.textTheme.muted),
+                        const SizedBox(height: 6),
+                        Text(
+                          s.title,
+                          style: shadTheme.textTheme.p.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (s.location.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(s.location, style: shadTheme.textTheme.muted),
+                        ],
+                        if (childTasks.isNotEmpty) ...[
+                          const Divider(height: 16),
+                          ...childTasks.map((t) => _buildTaskRow(
+                                context,
+                                overview.workspace.id,
+                                t,
+                                wsProvider,
+                                shadTheme,
+                              )),
+                        ],
                       ],
-                      if (childTasks.isNotEmpty) ...[
-                        const Divider(height: 16),
-                        ...childTasks.map((t) => _buildTaskRow(
-                              context,
-                              overview.workspace.id,
-                              t,
-                              wsProvider,
-                              shadTheme,
-                            )),
-                      ],
-                    ],
+                    ),
                   ),
                 ),
               );
@@ -706,46 +1146,37 @@ class _SharedWorkspaceBodyState extends State<SharedWorkspaceBody> {
             ...dayNotes.map((n) {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: ShadCard(
-                  padding: const EdgeInsets.all(12),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              n.title,
-                              style: shadTheme.textTheme.p.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            if (n.content.isNotEmpty) ...[
-                              const SizedBox(height: 4),
-                              Text(n.content, style: shadTheme.textTheme.muted),
-                            ],
-                            if (n.authorName.isNotEmpty) ...[
-                              const SizedBox(height: 4),
-                              Text(
-                                'Bởi ${n.authorName}',
-                                style: shadTheme.textTheme.muted
-                                    .copyWith(fontSize: 11),
-                              ),
-                            ],
-                          ],
+                child: SwipeToDeleteTile(
+                  key: ValueKey('swipe_ws_note_${n.id}'),
+                  onDelete: () => wsProvider.deleteNote(
+                    workspaceId: overview.workspace.id,
+                    noteId: n.id,
+                  ),
+                  child: ShadCard(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          n.title,
+                          style: shadTheme.textTheme.p.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                      ),
-                      IconButton(
-                        tooltip: 'Xóa ghi chú',
-                        visualDensity: VisualDensity.compact,
-                        onPressed: () => wsProvider.deleteNote(
-                          workspaceId: overview.workspace.id,
-                          noteId: n.id,
-                        ),
-                        icon: const Icon(LucideIcons.trash2, size: 16),
-                      ),
-                    ],
+                        if (n.content.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(n.content, style: shadTheme.textTheme.muted),
+                        ],
+                        if (n.authorName.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Bởi ${n.authorName}',
+                            style: shadTheme.textTheme.muted
+                                .copyWith(fontSize: 11),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -763,51 +1194,121 @@ class _SharedWorkspaceBodyState extends State<SharedWorkspaceBody> {
     ShadThemeData shadTheme,
   ) {
     final isDone = task.isCompleted;
-    return AnimatedOpacity(
-      duration: const Duration(milliseconds: 180),
-      opacity: isDone ? 0.48 : 1.0,
-      child: Row(
-        children: [
-          Checkbox(
-            visualDensity: VisualDensity.compact,
-            value: isDone,
-            onChanged: (_) => wsProvider.toggleTask(
-              workspaceId: workspaceId,
-              taskId: task.id,
-            ),
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  task.title,
-                  style: shadTheme.textTheme.small.copyWith(
-                    fontWeight: FontWeight.w600,
-                    decoration: isDone ? TextDecoration.lineThrough : null,
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final isOverdue = !isDone && task.dueDate != null && task.dueDate! < nowMs;
+    final isDueSoon = !isDone &&
+        task.dueDate != null &&
+        !isOverdue &&
+        task.dueDate! <= nowMs + const Duration(hours: 24).inMilliseconds;
+
+    final dueColor = isOverdue
+        ? const Color(0xFFDC2626)
+        : isDueSoon
+            ? const Color(0xFFD97706)
+            : shadTheme.colorScheme.mutedForeground;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: SwipeToDeleteTile(
+        key: ValueKey('swipe_ws_task_${task.id}'),
+        actionWidth: 74,
+        showIcon: false,
+        borderRadius: const BorderRadius.all(Radius.circular(8)),
+        onDelete: () => wsProvider.deleteTask(
+          workspaceId: workspaceId,
+          taskId: task.id,
+        ),
+        child: ColoredBox(
+          color: shadTheme.colorScheme.card,
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 180),
+            opacity: isDone ? 0.48 : 1.0,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Checkbox(
+                    visualDensity: VisualDensity.compact,
+                    value: isDone,
+                    onChanged: (_) {
+                      HapticFeedback.selectionClick();
+                      wsProvider.toggleTask(
+                        workspaceId: workspaceId,
+                        taskId: task.id,
+                      );
+                    },
                   ),
-                ),
-                if (task.assigneeName != null &&
-                    task.assigneeName!.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    'Phụ trách: ${task.assigneeName}',
-                    style: shadTheme.textTheme.muted.copyWith(fontSize: 11),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 6, right: 6),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            task.title,
+                            style: shadTheme.textTheme.small.copyWith(
+                              fontWeight: FontWeight.w600,
+                              decoration:
+                                  isDone ? TextDecoration.lineThrough : null,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              if (task.assigneeName != null &&
+                                  task.assigneeName!.isNotEmpty)
+                                Text(
+                                  'Phụ trách: ${task.assigneeName}',
+                                  style: shadTheme.textTheme.muted
+                                      .copyWith(fontSize: 11),
+                                ),
+                              if (task.dueDate != null)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: dueColor.withValues(alpha: 0.12),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        LucideIcons.clock,
+                                        size: 11,
+                                        color: dueColor,
+                                      ),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        DateFormatter.formatEpochDateTime(
+                                          task.dueDate!,
+                                        ),
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                          color: dueColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
-              ],
+              ),
             ),
           ),
-          IconButton(
-            tooltip: 'Xóa việc',
-            visualDensity: VisualDensity.compact,
-            onPressed: () => wsProvider.deleteTask(
-              workspaceId: workspaceId,
-              taskId: task.id,
-            ),
-            icon: const Icon(LucideIcons.trash2, size: 15),
-          ),
-        ],
+        ),
       ),
     );
   }

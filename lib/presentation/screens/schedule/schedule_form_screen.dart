@@ -85,6 +85,10 @@ class _ScheduleFormScreenState extends State<ScheduleFormScreen> {
     final picked = await showTimePicker(
       context: context,
       initialTime: isStart ? _startTime : _endTime,
+      builder: (c, child) => MediaQuery(
+        data: MediaQuery.of(c).copyWith(alwaysUse24HourFormat: true),
+        child: child!,
+      ),
     );
     if (picked == null) return;
     setState(() {

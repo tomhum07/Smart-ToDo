@@ -9,6 +9,7 @@ import '../../../data/models/schedule_model.dart';
 import '../../../data/models/task_model.dart';
 import '../../../providers/schedule_provider.dart';
 import '../../../providers/task_provider.dart';
+import '../../widgets/swipe_to_delete_tile.dart';
 
 /// Màn hình Chi tiết Mục lớn (VD: Môn Lập trình di động Thứ 2, 7h30–10h, B4-202)
 /// kèm danh sách các Công việc nhỏ (Subtasks) và thanh tiến độ riêng.
@@ -251,122 +252,121 @@ class ScheduleDetailScreen extends StatelessWidget {
 
               return Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 200),
-                  opacity: isDone ? 0.48 : 1.0,
-                  child: ShadCard(
-                    backgroundColor: isDone
-                        ? shadTheme.colorScheme.muted.withValues(alpha: 0.45)
-                        : null,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Checkbox(
-                          value: isDone,
-                          onChanged: (_) =>
-                              taskProvider.toggleTaskCompletion(task),
-                        ),
-                        Expanded(
-                          child: InkWell(
-                            onTap: () => Navigator.pushNamed(
-                              context,
-                              AppRoutes.taskForm,
-                              arguments: TaskFormArgs(
-                                task: task,
-                                initialScheduleId: schedule.id,
+                child: SwipeToDeleteTile(
+                  key: ValueKey('swipe_detail_task_${task.id}'),
+                  onDelete: () => _confirmDeleteTask(context, task),
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 200),
+                    opacity: isDone ? 0.48 : 1.0,
+                    child: ShadCard(
+                      backgroundColor: isDone
+                          ? shadTheme.colorScheme.muted.withValues(alpha: 0.45)
+                          : null,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Checkbox(
+                            value: isDone,
+                            onChanged: (_) =>
+                                taskProvider.toggleTaskCompletion(task),
+                          ),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () => Navigator.pushNamed(
+                                context,
+                                AppRoutes.taskForm,
+                                arguments: TaskFormArgs(
+                                  task: task,
+                                  initialScheduleId: schedule.id,
+                                ),
                               ),
-                            ),
-                            borderRadius: BorderRadius.circular(8),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 4),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    task.title,
-                                    style: shadTheme.textTheme.p.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                      decoration: isDone
-                                          ? TextDecoration.lineThrough
-                                          : null,
-                                    ),
-                                  ),
-                                  if (task.description.isNotEmpty) ...[
-                                    const SizedBox(height: 3),
+                              borderRadius: BorderRadius.circular(8),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 4),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
                                     Text(
-                                      task.description,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: shadTheme.textTheme.muted,
-                                    ),
-                                  ],
-                                  const SizedBox(height: 6),
-                                  Wrap(
-                                    spacing: 6,
-                                    runSpacing: 6,
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 7,
-                                          vertical: 2,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: priorityColor
-                                              .withValues(alpha: 0.14),
-                                          borderRadius:
-                                              BorderRadius.circular(999),
-                                        ),
-                                        child: Text(
-                                          AppColors.priorityLabel(
-                                            task.priority,
-                                          ),
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w600,
-                                            color: priorityColor,
-                                          ),
-                                        ),
+                                      task.title,
+                                      style: shadTheme.textTheme.p.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                        decoration: isDone
+                                            ? TextDecoration.lineThrough
+                                            : null,
                                       ),
-                                      if (task.dueDate != null)
-                                        ShadBadge.outline(
+                                    ),
+                                    if (task.description.isNotEmpty) ...[
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        task.description,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: shadTheme.textTheme.muted,
+                                      ),
+                                    ],
+                                    const SizedBox(height: 6),
+                                    Wrap(
+                                      spacing: 6,
+                                      runSpacing: 6,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 7,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: priorityColor
+                                                .withValues(alpha: 0.14),
+                                            borderRadius:
+                                                BorderRadius.circular(999),
+                                          ),
                                           child: Text(
-                                            DateFormatter.formatEpochDateTime(
-                                              task.dueDate!,
+                                            AppColors.priorityLabel(
+                                              task.priority,
                                             ),
                                             style: TextStyle(
                                               fontSize: 11,
-                                              color: isOverdue
-                                                  ? const Color(0xFFDC2626)
-                                                  : null,
+                                              fontWeight: FontWeight.w600,
+                                              color: priorityColor,
                                             ),
                                           ),
                                         ),
-                                      if (task.dueDate != null &&
-                                          task.remindBeforeMinutes > 0)
-                                        ShadBadge.secondary(
-                                          child: Text(
-                                            'Nhắc trước ${task.remindBeforeMinutes}p${task.repeatCount > 1 ? ' ×${task.repeatCount}' : ''}',
-                                            style:
-                                                const TextStyle(fontSize: 11),
+                                        if (task.dueDate != null)
+                                          ShadBadge.outline(
+                                            child: Text(
+                                              DateFormatter.formatEpochDateTime(
+                                                task.dueDate!,
+                                              ),
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: isOverdue
+                                                    ? const Color(0xFFDC2626)
+                                                    : null,
+                                              ),
+                                            ),
                                           ),
-                                        ),
-                                    ],
-                                  ),
-                                ],
+                                        if (task.dueDate != null &&
+                                            task.remindBeforeMinutes > 0)
+                                          ShadBadge.secondary(
+                                            child: Text(
+                                              'Nhắc trước ${task.remindBeforeMinutes}p${task.repeatCount > 1 ? ' ×${task.repeatCount}' : ''}',
+                                              style:
+                                                  const TextStyle(fontSize: 11),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        IconButton(
-                          tooltip: 'Xóa công việc nhỏ',
-                          onPressed: () => _confirmDeleteTask(context, task),
-                          icon: const Icon(LucideIcons.trash2, size: 17),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),

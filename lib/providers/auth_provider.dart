@@ -64,11 +64,17 @@ class AuthProvider extends ChangeNotifier {
       );
       final user = credential.user;
       if (user != null) {
-        await _syncService.saveUserProfile(
-          uid: user.uid,
-          email: user.email ?? email,
-          displayName: user.displayName ?? email.split('@').first,
-        );
+        try {
+          await _syncService
+              .saveUserProfile(
+                uid: user.uid,
+                email: user.email ?? email,
+                displayName: user.displayName ?? email.split('@').first,
+              )
+              .timeout(const Duration(seconds: 5));
+        } catch (e) {
+          debugPrint('Bỏ qua lỗi lưu profile cloud khi đăng nhập: $e');
+        }
       }
       _isLocalGuestMode = false;
       return true;
@@ -94,11 +100,17 @@ class AuthProvider extends ChangeNotifier {
       );
       final user = credential.user;
       if (user != null) {
-        await _syncService.saveUserProfile(
-          uid: user.uid,
-          email: user.email ?? email,
-          displayName: displayName,
-        );
+        try {
+          await _syncService
+              .saveUserProfile(
+                uid: user.uid,
+                email: user.email ?? email,
+                displayName: displayName,
+              )
+              .timeout(const Duration(seconds: 5));
+        } catch (e) {
+          debugPrint('Bỏ qua lỗi lưu profile cloud khi đăng ký: $e');
+        }
       }
       _isLocalGuestMode = false;
       return true;
@@ -137,8 +149,26 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    final uid = effectiveUserId;
     _isLocalGuestMode = false;
-    await _authService.signOut();
+    _errorMessage = null;
+
+    // Đồng bộ nhanh dữ liệu chưa đẩy (tối đa 2 giây) và không bao giờ chặn đăng xuất nếu lỗi/offline.
+    if (isFirebaseReady && uid != 'local_guest_user') {
+      try {
+        await _syncService
+            .pushUnsyncedData(uid)
+            .timeout(const Duration(seconds: 2));
+      } catch (e) {
+        debugPrint('Bỏ qua đồng bộ cloud trước khi đăng xuất: $e');
+      }
+    }
+
+    try {
+      await _authService.signOut().timeout(const Duration(seconds: 5));
+    } catch (e) {
+      debugPrint('Lỗi khi gọi Firebase signOut: $e');
+    }
     notifyListeners();
   }
 

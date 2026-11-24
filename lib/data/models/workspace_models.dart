@@ -34,6 +34,17 @@ class WorkspaceSummary {
       createdAt: (json['createdAt'] as num?)?.toInt() ?? 0,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'description': description,
+        'inviteCode': inviteCode,
+        'ownerUid': ownerUid,
+        'ownerName': ownerName,
+        'memberCount': memberCount,
+        'createdAt': createdAt,
+      };
 }
 
 class WorkspaceMember {
@@ -150,6 +161,25 @@ class WorkspaceTask {
     required this.updatedAt,
   });
 
+  WorkspaceTask copyWith({
+    bool? isCompleted,
+    int? updatedAt,
+  }) {
+    return WorkspaceTask(
+      id: id,
+      workspaceId: workspaceId,
+      scheduleId: scheduleId,
+      title: title,
+      description: description,
+      priority: priority,
+      isCompleted: isCompleted ?? this.isCompleted,
+      dueDate: dueDate,
+      assigneeUid: assigneeUid,
+      assigneeName: assigneeName,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
   factory WorkspaceTask.fromJson(Map<String, dynamic> json) {
     return WorkspaceTask(
       id: (json['id'] as String?) ?? '',
@@ -216,6 +246,22 @@ class WorkspaceOverview {
     required this.tasks,
     required this.notes,
   });
+
+  WorkspaceOverview copyWith({
+    WorkspaceSummary? workspace,
+    List<WorkspaceMember>? members,
+    List<WorkspaceSchedule>? schedules,
+    List<WorkspaceTask>? tasks,
+    List<WorkspaceNote>? notes,
+  }) {
+    return WorkspaceOverview(
+      workspace: workspace ?? this.workspace,
+      members: members ?? this.members,
+      schedules: schedules ?? this.schedules,
+      tasks: tasks ?? this.tasks,
+      notes: notes ?? this.notes,
+    );
+  }
 
   factory WorkspaceOverview.fromJson(Map<String, dynamic> json) {
     return WorkspaceOverview(
