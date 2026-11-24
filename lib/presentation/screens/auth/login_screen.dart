@@ -48,7 +48,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (!mounted) return;
     if (success) {
-      Navigator.pushReplacementNamed(context, AppRoutes.home);
+      final routeName = ModalRoute.of(context)?.settings.name;
+      if (routeName != AppRoutes.root) {
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          AppRoutes.root,
+          (route) => false,
+        );
+      }
     }
   }
 

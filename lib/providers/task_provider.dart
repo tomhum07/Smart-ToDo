@@ -224,9 +224,11 @@ class TaskProvider extends ChangeNotifier {
       isSynced: false,
     );
 
+    _tasks = [..._tasks, task];
+    notifyListeners();
+
     await _db.upsertTask(task);
     await _notifications.scheduleTaskReminder(task);
-    await loadTasks(userId, force: true);
     _syncInBackground(userId);
   }
 
@@ -235,9 +237,11 @@ class TaskProvider extends ChangeNotifier {
       updatedAt: DateTime.now().millisecondsSinceEpoch,
       isSynced: false,
     );
+    _tasks = _tasks.map((t) => t.id == saved.id ? saved : t).toList();
+    notifyListeners();
+
     await _db.upsertTask(saved);
     await _notifications.scheduleTaskReminder(saved);
-    await loadTasks(saved.userId, force: true);
     _syncInBackground(saved.userId);
   }
 
@@ -247,20 +251,24 @@ class TaskProvider extends ChangeNotifier {
       updatedAt: DateTime.now().millisecondsSinceEpoch,
       isSynced: false,
     );
+    _tasks = _tasks.map((t) => t.id == updated.id ? updated : t).toList();
+    notifyListeners();
+
     await _db.upsertTask(updated);
     if (updated.isCompleted) {
       await _notifications.cancelTaskReminder(updated.id);
     } else {
       await _notifications.scheduleTaskReminder(updated);
     }
-    await loadTasks(updated.userId, force: true);
     _syncInBackground(updated.userId);
   }
 
   Future<void> deleteTask(TaskModel task) async {
+    _tasks = _tasks.where((t) => t.id != task.id).toList();
+    notifyListeners();
+
     await _db.softDeleteTask(task.id);
     await _notifications.cancelTaskReminder(task.id);
-    await loadTasks(task.userId, force: true);
     _syncInBackground(task.userId);
   }
 
@@ -270,14 +278,23 @@ class TaskProvider extends ChangeNotifier {
     required String scheduleId,
   }) async {
     final children = _tasks.where((t) => t.scheduleId == scheduleId).toList();
+    if (children.isEmpty) return;
+
+    _tasks = _tasks.where((t) => t.scheduleId != scheduleId).toList();
+    notifyListeners();
+
     for (final child in children) {
       await _db.softDeleteTask(child.id);
       await _notifications.cancelTaskReminder(child.id);
     }
-    if (children.isNotEmpty) {
-      await loadTasks(userId, force: true);
-      _syncInBackground(userId);
-    }
+    _syncInBackground(userId);
+  }
+
+  void reset() {
+    _tasks = [];
+    _loadedUserId = null;
+    _isLoading = false;
+    resetFilters();
   }
 
   void _syncInBackground(String userId) {

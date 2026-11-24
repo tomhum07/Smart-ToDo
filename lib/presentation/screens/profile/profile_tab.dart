@@ -2,17 +2,59 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
+import '../../../core/routes/app_routes.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/services/notification_service.dart';
 import '../../../providers/auth_provider.dart';
+import '../../../providers/note_provider.dart';
+import '../../../providers/schedule_provider.dart';
+import '../../../providers/task_provider.dart';
 import '../../../providers/theme_provider.dart';
+import '../../../providers/workspace_provider.dart';
 
 /// Tab Hồ sơ gồm 3 mục:
-/// a. Tài khoản (Thông tin, Đổi mật khẩu [Coming soon], Đăng xuất)
+/// a. Tài khoản (Thông tin, Đổi mật khẩu, Đăng xuất)
 /// b. Hệ thống (Bật/Tắt thông báo, Chế độ Sáng/Tối/Hệ thống, Thay đổi bảng màu giao diện)
 /// c. ??? [Coming soon]
-class ProfileTab extends StatelessWidget {
+class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
+
+  @override
+  State<ProfileTab> createState() => _ProfileTabState();
+}
+
+class _ProfileTabState extends State<ProfileTab> {
+  bool _isSigningOut = false;
+
+  Future<void> _handleSignOut() async {
+    if (_isSigningOut) return;
+    setState(() => _isSigningOut = true);
+
+    final auth = context.read<AuthProvider>();
+    final taskProvider = context.read<TaskProvider>();
+    final noteProvider = context.read<NoteProvider>();
+    final scheduleProvider = context.read<ScheduleProvider>();
+    final workspaceProvider = context.read<WorkspaceProvider>();
+
+    try {
+      workspaceProvider.stopRealtimeSync();
+      await auth.signOut();
+      taskProvider.reset();
+      noteProvider.reset();
+      scheduleProvider.reset();
+      workspaceProvider.reset();
+
+      if (!mounted) return;
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        AppRoutes.root,
+        (route) => false,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSigningOut = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -84,15 +126,21 @@ class ProfileTab extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 ShadButton.destructive(
-                  onPressed: () => auth.signOut(),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(LucideIcons.logOut, size: 16),
-                      SizedBox(width: 8),
-                      Text('Đăng xuất'),
-                    ],
-                  ),
+                  onPressed: _isSigningOut ? null : _handleSignOut,
+                  child: _isSigningOut
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(LucideIcons.logOut, size: 16),
+                            SizedBox(width: 8),
+                            Text('Đăng xuất'),
+                          ],
+                        ),
                 ),
               ],
             ),

@@ -26,14 +26,20 @@ class _DeadlineAlertBannerState extends State<DeadlineAlertBanner> {
   @override
   Widget build(BuildContext context) {
     // Lắng nghe TaskProvider để cập nhật tức thì khi user vừa thêm/sửa/tick việc
-    final tasks = context.watch<TaskProvider>().allTasks;
-    final initialSummary = evaluateDeadlines(tasks);
+    final tasks = context.select<TaskProvider, List<dynamic>>(
+      (p) => p.allTasks,
+    );
+    final allTasks = context.read<TaskProvider>().allTasks;
+    final initialSummary = evaluateDeadlines(allTasks);
+    if (!initialSummary.hasAlert && tasks.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     return StreamBuilder<DeadlineSummary>(
       stream: _stream,
       initialData: initialSummary,
       builder: (context, snapshot) {
-        final summary = evaluateDeadlines(tasks);
+        final summary = evaluateDeadlines(allTasks);
         if (!summary.hasAlert) return const SizedBox.shrink();
 
         final isOverdue = summary.overdueCount > 0;

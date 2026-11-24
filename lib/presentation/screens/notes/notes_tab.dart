@@ -11,6 +11,7 @@ import '../../../core/utils/date_formatter.dart';
 import '../../../data/models/note_model.dart';
 import '../../../providers/note_provider.dart';
 import '../../widgets/filter_bar_widget.dart';
+import '../../widgets/swipe_to_delete_tile.dart';
 
 /// Tab Ghi chú đa phương tiện: Thanh lọc siêu gọn 1 hàng + OrientationBuilder 2/3 cột.
 class NotesTab extends StatefulWidget {
@@ -102,14 +103,19 @@ class _NotesTabState extends State<NotesTab> {
                             itemCount: notes.length,
                             itemBuilder: (context, index) {
                               final note = notes[index];
-                              return _NoteGridCard(
-                                note: note,
-                                onTap: () => Navigator.pushNamed(
-                                  context,
-                                  AppRoutes.noteEditor,
-                                  arguments: note,
-                                ),
+                              return SwipeToDeleteTile(
+                                key: ValueKey('swipe_note_${note.id}'),
+                                actionWidth: 72,
                                 onDelete: () => _confirmDelete(context, note),
+                                child: _NoteGridCard(
+                                  note: note,
+                                  onTap: () => Navigator.pushNamed(
+                                    context,
+                                    AppRoutes.noteEditor,
+                                    arguments: note,
+                                  ),
+                                  onDelete: () => _confirmDelete(context, note),
+                                ),
                               );
                             },
                           );

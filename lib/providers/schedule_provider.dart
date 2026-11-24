@@ -186,16 +186,23 @@ class ScheduleProvider extends ChangeNotifier {
       isSynced: false,
     );
 
-    await _db.upsertSchedule(schedule);
+    final exists = _schedules.any((s) => s.id == schedule.id);
+    _schedules = exists
+        ? _schedules.map((s) => s.id == schedule.id ? schedule : s).toList()
+        : [..._schedules, schedule];
     _focusedWeekStart = _mondayOf(targetDate);
     _selectedDayOfWeek = targetDate.weekday;
-    await loadSchedules(userId, force: true);
+    notifyListeners();
+
+    await _db.upsertSchedule(schedule);
     _syncInBackground(userId);
   }
 
   Future<void> deleteSchedule(ScheduleModel schedule) async {
+    _schedules = _schedules.where((s) => s.id != schedule.id).toList();
+    notifyListeners();
+
     await _db.softDeleteSchedule(schedule.id);
-    await loadSchedules(schedule.userId, force: true);
     _syncInBackground(schedule.userId);
   }
 
@@ -225,6 +232,17 @@ class ScheduleProvider extends ChangeNotifier {
       _syncInBackground(userId);
     }
     return imported;
+  }
+
+  void reset() {
+    _schedules = [];
+    _loadedUserId = null;
+    _isLoading = false;
+    _activeWorkspaceId = personalWorkspace.id;
+    _workspaces
+      ..clear()
+      ..add(personalWorkspace);
+    notifyListeners();
   }
 
   void _syncInBackground(String userId) {

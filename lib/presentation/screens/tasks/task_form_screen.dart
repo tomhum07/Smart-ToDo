@@ -75,6 +75,10 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     final pickedTime = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(initialDate),
+      builder: (c, child) => MediaQuery(
+        data: MediaQuery.of(c).copyWith(alwaysUse24HourFormat: true),
+        child: child!,
+      ),
     );
     if (!mounted) return;
 

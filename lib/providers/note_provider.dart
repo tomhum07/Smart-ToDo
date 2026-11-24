@@ -153,15 +153,29 @@ class NoteProvider extends ChangeNotifier {
       isSynced: false,
     );
 
+    final exists = _notes.any((n) => n.id == note.id);
+    _notes = exists
+        ? _notes.map((n) => n.id == note.id ? note : n).toList()
+        : [note, ..._notes];
+    notifyListeners();
+
     await _db.upsertNote(note);
-    await loadNotes(userId, force: true);
     _syncInBackground(userId);
   }
 
   Future<void> deleteNote(NoteModel note) async {
+    _notes = _notes.where((n) => n.id != note.id).toList();
+    notifyListeners();
+
     await _db.softDeleteNote(note.id);
-    await loadNotes(note.userId, force: true);
     _syncInBackground(note.userId);
+  }
+
+  void reset() {
+    _notes = [];
+    _loadedUserId = null;
+    _isLoading = false;
+    resetFilters();
   }
 
   void _syncInBackground(String userId) {
