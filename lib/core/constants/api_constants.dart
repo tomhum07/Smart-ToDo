@@ -19,6 +19,12 @@ class ApiConstants {
       supabaseAnonKey != 'YOUR_SUPABASE_ANON_KEY' &&
       supabaseAnonKey.isNotEmpty;
 
+  // --- GitHub Releases (Tự động cập nhật APK trực tiếp trong app) ---
+  static const String githubOwner = 'tomhum07';
+  static const String githubRepo = 'Smart-ToDo';
+  static String get githubLatestReleaseUrl =>
+      'https://api.github.com/repos/$githubOwner/$githubRepo/releases/latest';
+
   // --- Nager.Date Public Holidays API (Miễn phí, không cần API Key) ---
   static const String nagerDateBaseUrl = 'https://date.nager.at/api/v3';
 

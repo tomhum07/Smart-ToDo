@@ -5,6 +5,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../../core/routes/app_routes.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/responsive_layout.dart';
+import '../../../data/services/app_update_service.dart';
 import '../../../data/services/notification_service.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/note_provider.dart';
@@ -12,6 +13,7 @@ import '../../../providers/schedule_provider.dart';
 import '../../../providers/task_provider.dart';
 import '../../../providers/theme_provider.dart';
 import '../../../providers/workspace_provider.dart';
+import '../../widgets/update_dialog.dart';
 
 /// Tab Hồ sơ gồm 3 mục:
 /// a. Tài khoản (Thông tin, Đổi mật khẩu, Đăng xuất)
@@ -26,6 +28,45 @@ class ProfileTab extends StatefulWidget {
 
 class _ProfileTabState extends State<ProfileTab> {
   bool _isSigningOut = false;
+  bool _isCheckingUpdate = false;
+  String _appVersion = '';
+
+  @override
+  void initState() {
+    super.initState();
+    AppUpdateService.instance.getCurrentVersion().then((v) {
+      if (mounted) setState(() => _appVersion = v);
+    });
+  }
+
+  Future<void> _handleCheckUpdate() async {
+    if (_isCheckingUpdate) return;
+    setState(() => _isCheckingUpdate = true);
+    try {
+      final update = await AppUpdateService.instance.checkForUpdate();
+      if (!mounted) return;
+      if (update != null) {
+        await AppUpdateDialog.show(context, update);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Bạn đang dùng phiên bản mới nhất${_appVersion.isNotEmpty ? ' (v$_appVersion)' : ''}!',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isCheckingUpdate = false);
+    }
+  }
 
   Future<void> _handleSignOut() async {
     if (_isSigningOut) return;
@@ -299,17 +340,45 @@ class _ProfileTabState extends State<ProfileTab> {
         ),
         const SizedBox(height: 16),
 
-        // ==================== c. MỤC ??? (COMING SOON) ====================
+        // ==================== c. CẬP NHẬT ỨNG DỤNG ====================
         ShadCard(
-          title: const Row(
+          title: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('???'),
-              ShadBadge.secondary(child: Text('Coming soon')),
+              const Text('Cập nhật ứng dụng'),
+              if (_appVersion.isNotEmpty)
+                ShadBadge.secondary(child: Text('v$_appVersion')),
             ],
           ),
           description: const Text(
-            'Tính năng bí mật sẽ được hé lộ ở các bản cập nhật tiếp theo.',
+            'Kiểm tra và cài đặt phiên bản Smart Todo mới nhất trực tiếp từ GitHub Releases.',
+          ),
+          child: Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: ShadButton.outline(
+              onPressed: _isCheckingUpdate ? null : _handleCheckUpdate,
+              child: _isCheckingUpdate
+                  ? const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 15,
+                          height: 15,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        SizedBox(width: 8),
+                        Text('Đang kiểm tra bản mới...'),
+                      ],
+                    )
+                  : const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(LucideIcons.refreshCw, size: 15),
+                        SizedBox(width: 8),
+                        Text('Kiểm tra cập nhật ngay'),
+                      ],
+                    ),
+            ),
           ),
         ),
       ],

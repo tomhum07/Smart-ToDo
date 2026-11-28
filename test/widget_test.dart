@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:todo_app/data/services/app_update_service.dart';
 import 'package:todo_app/main.dart';
 import 'package:todo_app/providers/theme_provider.dart';
 
@@ -41,7 +42,15 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Tài khoản'), findsOneWidget);
     expect(find.text('Hệ thống'), findsWidgets);
-    await tester.scrollUntilVisible(find.text('???'), 300);
-    expect(find.text('???'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Cập nhật ứng dụng'), 300);
+    expect(find.text('Cập nhật ứng dụng'), findsOneWidget);
+  });
+
+  test('AppUpdateService.isNewerVersion compares SemVer tags accurately', () {
+    expect(AppUpdateService.isNewerVersion('v1.2.0', '1.1.0'), isTrue);
+    expect(AppUpdateService.isNewerVersion('1.1.1', '1.1.0'), isTrue);
+    expect(AppUpdateService.isNewerVersion('2.0.0', '1.9.9'), isTrue);
+    expect(AppUpdateService.isNewerVersion('v1.1.0', '1.1.0'), isFalse);
+    expect(AppUpdateService.isNewerVersion('1.0.9', '1.1.0'), isFalse);
   });
 }
