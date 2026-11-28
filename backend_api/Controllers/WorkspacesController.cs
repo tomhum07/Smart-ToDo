@@ -148,6 +148,52 @@ public class WorkspacesController(AppDbContext db) : ControllerBase
     }
 
     /// <summary>
+    /// Mời thành viên ra khỏi nhóm (Kick) — chỉ Nhóm trưởng (Owner) mới có quyền.
+    /// </summary>
+    [HttpDelete("{id}/members/{targetUid}")]
+    public async Task<IActionResult> KickMember(
+        string id,
+        string targetUid,
+        [FromQuery] string requesterUid)
+    {
+        if (string.IsNullOrWhiteSpace(requesterUid) ||
+            string.IsNullOrWhiteSpace(targetUid))
+        {
+            return BadRequest(new { message = "Thiếu thông tin người yêu cầu hoặc thành viên cần xóa." });
+        }
+
+        var workspace = await db.Workspaces
+            .Include(w => w.Members)
+            .Include(w => w.Tasks)
+            .FirstOrDefaultAsync(w => w.Id == id);
+
+        if (workspace is null)
+            return NotFound(new { message = "Nhóm không tồn tại." });
+
+        if (workspace.OwnerUid != requesterUid)
+            return StatusCode(403, new { message = "Chỉ nhóm trưởng mới có quyền mời thành viên ra khỏi nhóm." });
+
+        if (targetUid == workspace.OwnerUid)
+            return BadRequest(new { message = "Không thể xóa nhóm trưởng. Hãy dùng chức năng Xóa nhóm." });
+
+        var member = workspace.Members.FirstOrDefault(m => m.UserUid == targetUid);
+        if (member is null)
+            return NotFound(new { message = "Thành viên không còn trong nhóm." });
+
+        // Gỡ phân công các công việc đang giao cho thành viên bị mời ra
+        foreach (var task in workspace.Tasks.Where(t => t.AssigneeUid == targetUid))
+        {
+            task.AssigneeUid = null;
+            task.AssigneeName = null;
+            task.UpdatedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        }
+
+        db.WorkspaceMembers.Remove(member);
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    /// <summary>
     /// Tải toàn bộ dữ liệu 1 Workspace (Members, Schedules, Tasks, Notes) trong 1 request.
     /// </summary>
     [HttpGet("{id}/overview")]

@@ -5,6 +5,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/routes/app_routes.dart';
 import '../../../core/utils/date_formatter.dart';
+import '../../../core/utils/responsive_layout.dart';
 import '../../../data/models/schedule_model.dart';
 import '../../../data/models/task_model.dart';
 import '../../../providers/auth_provider.dart';
@@ -109,6 +110,7 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
+      constraints: const BoxConstraints(maxWidth: 560),
       builder: (ctx) {
         final shadTheme = ShadTheme.of(ctx);
         final maxHeight = MediaQuery.of(ctx).size.height * 0.72;
@@ -319,7 +321,7 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
                     leading: const Icon(LucideIcons.calendarPlus),
                     title: const Text('Thêm Mục lớn chung'),
                     subtitle: const Text(
-                      'Lịch họp / môn học chung cho tất cả thành viên',
+                      'Lịch hẹn / sự kiện chung cho tất cả thành viên',
                     ),
                     onTap: () {
                       Navigator.pop(ctx);
@@ -381,9 +383,9 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
               children: [
                 ListTile(
                   leading: const Icon(LucideIcons.calendarPlus),
-                  title: const Text('Thêm Mục lớn (Lịch trình / Môn học)'),
+                  title: const Text('Thêm Lịch trình / Sự kiện'),
                   subtitle: const Text(
-                    'VD: Lập trình di động • Thứ 2, 07:30–10:00, phòng B4-202',
+                    'VD: Họp kế hoạch tuần • Thứ 2, 09:00–10:30',
                   ),
                   onTap: () {
                     Navigator.pop(ctx);
@@ -496,14 +498,18 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
     final standaloneTasks = taskProvider.standaloneFilteredTasks;
     final selectedDate = scheduleProvider.selectedDate;
 
-    return Scaffold(
-      body: Column(
-        children: [
-          const DeadlineAlertBanner(),
+    final hPad = ResponsiveLayout.horizontalPadding(context);
 
-          // 1. Thanh chọn Workspace (thay cho phần Ngày lễ cũ)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
+    return Scaffold(
+      body: ResponsiveCenterContainer(
+        maxWidth: 860,
+        child: Column(
+          children: [
+            const DeadlineAlertBanner(),
+
+            // 1. Thanh chọn Workspace
+            Padding(
+              padding: EdgeInsets.fromLTRB(hPad, 8, hPad, 4),
             child: InkWell(
               onTap: _showWorkspaceSwitcherSheet,
               borderRadius: BorderRadius.circular(10),
@@ -557,7 +563,7 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
             padding: const EdgeInsets.fromLTRB(14, 4, 14, 6),
             child: FilterBarWidget(
               searchController: _searchController,
-              searchPlaceholder: 'Tìm môn học, công việc...',
+              searchPlaceholder: 'Tìm lịch trình, công việc...',
               selectedCategory: taskProvider.selectedCategory,
               selectedPriority: taskProvider.selectedPriority,
               activeFilterCount: taskProvider.activeFilterCount,
@@ -840,7 +846,7 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
                                     vertical: 14,
                                   ),
                                   child: Text(
-                                    'Chưa có mục lớn nào cho ${DateFormatter.dayOfWeekLabel(scheduleProvider.selectedDayOfWeek)}. Bấm nút "+" để tạo lịch học / sự kiện!',
+                                    'Chưa có lịch trình nào cho ${DateFormatter.dayOfWeekLabel(scheduleProvider.selectedDayOfWeek)}. Bấm nút "+" để tạo lịch hẹn / sự kiện!',
                                     textAlign: TextAlign.center,
                                     style: shadTheme.textTheme.muted,
                                   ),
@@ -943,6 +949,7 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
             ),
           ),
         ],
+      ),
       ),
       floatingActionButton: Column(
         mainAxisSize: MainAxisSize.min,

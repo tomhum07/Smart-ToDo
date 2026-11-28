@@ -129,7 +129,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                   const SizedBox(height: 6),
                   ShadInput(
                     controller: _titleController,
-                    placeholder: const Text('VD: Ghi chú ôn thi Flutter'),
+                    placeholder: const Text('VD: Danh sách việc cần chuẩn bị'),
                   ),
                   const SizedBox(height: 14),
                   Text('Nội dung', style: shadTheme.textTheme.small),

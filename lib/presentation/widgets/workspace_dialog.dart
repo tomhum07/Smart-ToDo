@@ -129,7 +129,7 @@ class _WorkspaceDialogState extends State<WorkspaceDialog> {
     return ShadDialog(
       title: const Text('Không gian Chia sẻ Nhóm'),
       description: const Text(
-        'Cùng nhóm quản lý thời khóa biểu chung, phân công việc nhỏ cho từng thành viên và ghi chú theo ngày.',
+        'Cùng nhóm quản lý lịch trình chung, phân công công việc cho từng thành viên và ghi chú theo ngày.',
       ),
       actions: [
         ShadButton.outline(
@@ -186,7 +186,7 @@ class _WorkspaceDialogState extends State<WorkspaceDialog> {
             if (_modeIndex == 0) ...[
               ShadInput(
                 controller: _nameController,
-                placeholder: const Text('VD: Nhóm 1 - Lập trình Mobile'),
+                placeholder: const Text('VD: Nhóm Dự án A'),
               ),
               const SizedBox(height: 10),
               ShadInput(
@@ -239,7 +239,7 @@ class _WorkspaceDialogState extends State<WorkspaceDialog> {
             ] else ...[
               ShadInput(
                 controller: _codeController,
-                placeholder: const Text('Nhập mã mời 6 ký tự (VD: DTHU88)'),
+                placeholder: const Text('Nhập mã mời 6 ký tự (VD: AB12CD)'),
                 textCapitalization: TextCapitalization.characters,
               ),
               const SizedBox(height: 12),
