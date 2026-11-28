@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ffi' show Abi;
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -81,8 +82,61 @@ class AppUpdateService {
     return false;
   }
 
+  /// Trả về tên ABI Android tương ứng với CPU của máy hiện tại.
+  static String? currentAndroidAbiTag() {
+    if (kIsWeb || !Platform.isAndroid) return null;
+    final current = Abi.current();
+    if (current == Abi.androidArm64) return 'arm64-v8a';
+    if (current == Abi.androidArm) return 'armeabi-v7a';
+    if (current == Abi.androidX64) return 'x86_64';
+    if (current == Abi.androidIA32) return 'x86';
+    return null;
+  }
+
+  /// Chọn file APK phù hợp nhất với kiến trúc CPU của thiết bị từ danh sách assets GitHub Release.
+  /// Ưu tiên: đúng ABI của máy -> file APK chung (universal, không gắn tên ABI) -> file APK đầu tiên.
+  static Map<String, dynamic>? selectBestApkAsset(
+    List<dynamic> assets, {
+    String? preferredAbi,
+  }) {
+    final apkAssets = <Map<String, dynamic>>[];
+    for (final raw in assets) {
+      if (raw is! Map) continue;
+      final map = Map<String, dynamic>.from(raw);
+      final name = (map['name'] as String?)?.toLowerCase() ?? '';
+      if (name.endsWith('.apk')) {
+        apkAssets.add(map);
+      }
+    }
+    if (apkAssets.isEmpty) return null;
+
+    // 1. Ưu tiên khớp chính xác ABI của thiết bị (VD: arm64-v8a, armeabi-v7a, x86_64)
+    if (preferredAbi != null && preferredAbi.isNotEmpty) {
+      final needle = preferredAbi.toLowerCase();
+      for (final asset in apkAssets) {
+        final name = (asset['name'] as String?)?.toLowerCase() ?? '';
+        if (name.contains(needle)) {
+          return asset;
+        }
+      }
+    }
+
+    // 2. Dự phòng: file APK universal (không chứa tag kiến trúc cụ thể nào)
+    const knownAbiTags = ['arm64-v8a', 'armeabi-v7a', 'x86_64', 'x86'];
+    for (final asset in apkAssets) {
+      final name = (asset['name'] as String?)?.toLowerCase() ?? '';
+      final isArchSpecific = knownAbiTags.any(name.contains);
+      if (!isArchSpecific) {
+        return asset;
+      }
+    }
+
+    // 3. Cuối cùng: lấy file APK đầu tiên
+    return apkAssets.first;
+  }
+
   /// Kiểm tra bản phát hành mới nhất trên GitHub Releases.
-  /// Trả về [AppUpdateInfo] nếu có bản mới hơn kèm file .apk, ngược lại trả về null.
+  /// Trả về [AppUpdateInfo] nếu có bản mới hơn kèm file .apk phù hợp CPU, ngược lại trả về null.
   Future<AppUpdateInfo?> checkForUpdate({bool onlyOncePerSession = false}) async {
     if (kIsWeb || !Platform.isAndroid) return null;
     if (onlyOncePerSession && _hasCheckedThisSession) return null;
@@ -113,16 +167,10 @@ class AppUpdateService {
     }
 
     final assets = (data['assets'] as List?) ?? const [];
-    Map<String, dynamic>? apkAsset;
-    for (final raw in assets) {
-      if (raw is! Map) continue;
-      final map = Map<String, dynamic>.from(raw);
-      final name = (map['name'] as String?)?.toLowerCase() ?? '';
-      if (name.endsWith('.apk')) {
-        apkAsset = map;
-        break;
-      }
-    }
+    final apkAsset = selectBestApkAsset(
+      assets,
+      preferredAbi: currentAndroidAbiTag(),
+    );
 
     if (apkAsset == null) return null;
 

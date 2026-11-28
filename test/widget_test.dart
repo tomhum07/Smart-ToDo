@@ -53,4 +53,35 @@ void main() {
     expect(AppUpdateService.isNewerVersion('v1.1.0', '1.1.0'), isFalse);
     expect(AppUpdateService.isNewerVersion('1.0.9', '1.1.0'), isFalse);
   });
+
+  test('AppUpdateService.selectBestApkAsset picks matching CPU ABI or fallback',
+      () {
+    final assets = [
+      {'name': 'app-armeabi-v7a-release.apk', 'browser_download_url': 'u1'},
+      {'name': 'app-arm64-v8a-release.apk', 'browser_download_url': 'u2'},
+      {'name': 'app-x86_64-release.apk', 'browser_download_url': 'u3'},
+      {'name': 'app-release.apk', 'browser_download_url': 'u4'},
+    ];
+
+    expect(
+      AppUpdateService.selectBestApkAsset(assets, preferredAbi: 'arm64-v8a')?[
+          'name'],
+      'app-arm64-v8a-release.apk',
+    );
+    expect(
+      AppUpdateService.selectBestApkAsset(assets, preferredAbi: 'armeabi-v7a')?[
+          'name'],
+      'app-armeabi-v7a-release.apk',
+    );
+    expect(
+      AppUpdateService.selectBestApkAsset(assets, preferredAbi: 'x86_64')?[
+          'name'],
+      'app-x86_64-release.apk',
+    );
+    expect(
+      AppUpdateService.selectBestApkAsset(assets, preferredAbi: 'mips')?[
+          'name'],
+      'app-release.apk',
+    );
+  });
 }
