@@ -30,6 +30,7 @@ class WorkspaceMembersSheet extends StatefulWidget {
 
 class _WorkspaceMembersSheetState extends State<WorkspaceMembersSheet> {
   bool _isProcessing = false;
+  bool _isClosing = false;
   String? _kickingUid;
 
   Future<void> _confirmKickMember(
@@ -113,6 +114,7 @@ class _WorkspaceMembersSheetState extends State<WorkspaceMembersSheet> {
     if (confirmed != true || !mounted) return;
 
     setState(() => _isProcessing = true);
+    final messenger = ScaffoldMessenger.of(context);
     try {
       final wsProvider = context.read<WorkspaceProvider>();
       final scheduleProvider = context.read<ScheduleProvider>();
@@ -126,8 +128,11 @@ class _WorkspaceMembersSheetState extends State<WorkspaceMembersSheet> {
       HapticFeedback.lightImpact();
 
       if (!mounted) return;
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
+      if (!_isClosing && (ModalRoute.of(context)?.isCurrent ?? false)) {
+        _isClosing = true;
+        Navigator.of(context).pop();
+      }
+      messenger.showSnackBar(
         SnackBar(
           content: Text(
             isOwner
@@ -155,14 +160,18 @@ class _WorkspaceMembersSheetState extends State<WorkspaceMembersSheet> {
     final overview = wsProvider.activeOverview;
 
     if (overview == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && Navigator.of(context).canPop()) {
-          Navigator.of(context).pop();
-        }
-      });
+      // Chỉ tự đóng khi bị người khác kick / xóa nhóm từ xa (không chạy khi chính mình đang bấm Rời/Xóa)
+      if (!_isProcessing && !_isClosing) {
+        _isClosing = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && (ModalRoute.of(context)?.isCurrent ?? false)) {
+            Navigator.of(context).pop();
+          }
+        });
+      }
       return const Padding(
         padding: EdgeInsets.all(24),
-        child: Center(child: Text('Bạn không còn trong nhóm này.')),
+        child: Center(child: Text('Đang quay về Không gian Cá nhân...')),
       );
     }
 
