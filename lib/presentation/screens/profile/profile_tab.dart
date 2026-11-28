@@ -4,6 +4,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../core/routes/app_routes.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../core/utils/responsive_layout.dart';
 import '../../../data/services/notification_service.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/note_provider.dart';
@@ -28,6 +29,28 @@ class _ProfileTabState extends State<ProfileTab> {
 
   Future<void> _handleSignOut() async {
     if (_isSigningOut) return;
+
+    final confirmed = await showShadDialog<bool>(
+      context: context,
+      builder: (ctx) => ShadDialog.alert(
+        title: const Text('Đăng xuất tài khoản?'),
+        description: const Text(
+          'Bạn có chắc muốn đăng xuất khỏi tài khoản hiện tại không? Dữ liệu chưa đồng bộ sẽ được lưu nhanh trước khi thoát.',
+        ),
+        actions: [
+          ShadButton.outline(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          ShadButton.destructive(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Đăng xuất'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
     setState(() => _isSigningOut = true);
 
     final auth = context.read<AuthProvider>();
@@ -66,9 +89,13 @@ class _ProfileTabState extends State<ProfileTab> {
         ? auth.displayName[0].toUpperCase()
         : 'U';
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
+    final hPad = ResponsiveLayout.horizontalPadding(context);
+
+    return ResponsiveCenterContainer(
+      maxWidth: 760,
+      child: ListView(
+        padding: EdgeInsets.symmetric(horizontal: hPad, vertical: 16),
+        children: [
         // ==================== a. MỤC TÀI KHOẢN ====================
         ShadCard(
           title: const Text('Tài khoản'),
@@ -286,6 +313,7 @@ class _ProfileTabState extends State<ProfileTab> {
           ),
         ),
       ],
+      ),
     );
   }
 

@@ -58,7 +58,7 @@ class _ShareScheduleDialogState extends State<ShareScheduleDialog> {
       setState(() {
         _generatedCode = result.code;
         _successMessage =
-            'Đã tạo mã chia sẻ cho ${schedules.length} tiết học!';
+            'Đã tạo mã chia sẻ cho ${schedules.length} mục lịch!';
       });
     } catch (e) {
       if (!mounted) return;
@@ -120,7 +120,7 @@ class _ShareScheduleDialogState extends State<ShareScheduleDialog> {
     final shadTheme = ShadTheme.of(context);
 
     return ShadDialog(
-      title: const Text('Chia sẻ Thời khóa biểu'),
+      title: const Text('Chia sẻ Lịch trình'),
       description: const Text(
         'Tạo mã 6 ký tự để chia sẻ cho bạn cùng lớp hoặc nhập mã để tải lịch về máy.',
       ),
@@ -224,7 +224,7 @@ class _ShareScheduleDialogState extends State<ShareScheduleDialog> {
             ] else ...[
               ShadInput(
                 controller: _codeController,
-                placeholder: const Text('Nhập mã 6 ký tự (VD: DTHU99)'),
+                placeholder: const Text('Nhập mã 6 ký tự (VD: AB12CD)'),
                 textCapitalization: TextCapitalization.characters,
               ),
               const SizedBox(height: 12),
@@ -236,7 +236,7 @@ class _ShareScheduleDialogState extends State<ShareScheduleDialog> {
                         height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Tải & Nhập thời khóa biểu'),
+                    : const Text('Tải & Nhập lịch trình'),
               ),
             ],
             if (_errorMessage != null) ...[

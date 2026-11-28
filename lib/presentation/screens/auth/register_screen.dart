@@ -107,7 +107,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       const SizedBox(height: 6),
                       ShadInput(
                         controller: _emailController,
-                        placeholder: const Text('sinhvien@dthu.edu.vn'),
+                        placeholder: const Text('ten@example.com'),
                         keyboardType: TextInputType.emailAddress,
                       ),
                       const SizedBox(height: 14),

@@ -15,9 +15,10 @@ class AppColors {
   ];
 
   static const List<String> defaultCategories = [
-    'Học tập',
     'Công việc',
     'Cá nhân',
+    'Học tập',
+    'Gia đình',
     'Khác',
   ];
 

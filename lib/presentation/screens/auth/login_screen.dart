@@ -134,7 +134,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     ShadInput(
                       controller: resetController,
-                      placeholder: const Text('sinhvien@dthu.edu.vn'),
+                      placeholder: const Text('ten@example.com'),
                       keyboardType: TextInputType.emailAddress,
                     ),
                     if (dialogError != null) ...[
@@ -215,7 +215,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ShadCard(
                     title: const Text('Đăng nhập'),
                     description: const Text(
-                      'Quản lý ghi chú, công việc và thời khóa biểu cá nhân của bạn.',
+                      'Quản lý ghi chú, công việc và lịch trình cá nhân của bạn.',
                     ),
                     child: Padding(
                       padding: const EdgeInsets.only(top: 16),
@@ -226,7 +226,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           const SizedBox(height: 6),
                           ShadInput(
                             controller: _emailController,
-                            placeholder: const Text('sinhvien@dthu.edu.vn'),
+                            placeholder: const Text('ten@example.com'),
                             keyboardType: TextInputType.emailAddress,
                           ),
                           const SizedBox(height: 14),

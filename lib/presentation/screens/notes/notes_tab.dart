@@ -8,6 +8,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/routes/app_routes.dart';
 import '../../../core/utils/date_formatter.dart';
+import '../../../core/utils/responsive_layout.dart';
 import '../../../data/models/note_model.dart';
 import '../../../providers/note_provider.dart';
 import '../../widgets/filter_bar_widget.dart';
@@ -58,71 +59,80 @@ class _NotesTabState extends State<NotesTab> {
     final noteProvider = context.watch<NoteProvider>();
     final notes = noteProvider.filteredNotes;
 
+    final hPad = ResponsiveLayout.horizontalPadding(context);
+
     return Scaffold(
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-            child: FilterBarWidget(
-              searchController: _searchController,
-              searchPlaceholder: 'Tìm kiếm ghi chú...',
-              selectedCategory: noteProvider.selectedCategory,
-              selectedPriority: noteProvider.selectedPriority,
-              activeFilterCount: noteProvider.activeFilterCount,
-              onSearchChanged: noteProvider.setSearchQuery,
-              onCategoryChanged: noteProvider.setCategory,
-              onPriorityChanged: noteProvider.setPriority,
-              onResetFilters: () {
-                _searchController.clear();
-                noteProvider.resetFilters();
-              },
+      body: ResponsiveCenterContainer(
+        maxWidth: 1080,
+        child: Column(
+          children: [
+            Padding(
+              padding: EdgeInsets.fromLTRB(hPad, 10, hPad, 10),
+              child: FilterBarWidget(
+                searchController: _searchController,
+                searchPlaceholder: 'Tìm kiếm ghi chú...',
+                selectedCategory: noteProvider.selectedCategory,
+                selectedPriority: noteProvider.selectedPriority,
+                activeFilterCount: noteProvider.activeFilterCount,
+                onSearchChanged: noteProvider.setSearchQuery,
+                onCategoryChanged: noteProvider.setCategory,
+                onPriorityChanged: noteProvider.setPriority,
+                onResetFilters: () {
+                  _searchController.clear();
+                  noteProvider.resetFilters();
+                },
+              ),
             ),
-          ),
-          const Divider(height: 1),
-          Expanded(
-            child: noteProvider.isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : notes.isEmpty
-                    ? _buildEmptyState(context, noteProvider)
-                    : OrientationBuilder(
-                        builder: (context, orientation) {
-                          final crossAxisCount =
-                              orientation == Orientation.landscape ? 3 : 2;
-                          return GridView.builder(
-                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
-                            gridDelegate:
-                                SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: crossAxisCount,
-                              crossAxisSpacing: 12,
-                              mainAxisSpacing: 12,
-                              childAspectRatio:
-                                  orientation == Orientation.landscape
-                                      ? 1.05
-                                      : 0.85,
-                            ),
-                            itemCount: notes.length,
-                            itemBuilder: (context, index) {
-                              final note = notes[index];
-                              return SwipeToDeleteTile(
-                                key: ValueKey('swipe_note_${note.id}'),
-                                actionWidth: 72,
-                                onDelete: () => _confirmDelete(context, note),
-                                child: _NoteGridCard(
-                                  note: note,
-                                  onTap: () => Navigator.pushNamed(
-                                    context,
-                                    AppRoutes.noteEditor,
-                                    arguments: note,
-                                  ),
+            const Divider(height: 1),
+            Expanded(
+              child: noteProvider.isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : notes.isEmpty
+                      ? _buildEmptyState(context, noteProvider)
+                      : LayoutBuilder(
+                          builder: (context, constraints) {
+                            final crossAxisCount =
+                                ResponsiveLayout.notesGridColumns(
+                              constraints.maxWidth,
+                            );
+                            final aspectRatio =
+                                ResponsiveLayout.notesGridAspectRatio(
+                              constraints.maxWidth,
+                            );
+                            return GridView.builder(
+                              padding: EdgeInsets.fromLTRB(hPad, 12, hPad, 90),
+                              gridDelegate:
+                                  SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: crossAxisCount,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
+                                childAspectRatio: aspectRatio,
+                              ),
+                              itemCount: notes.length,
+                              itemBuilder: (context, index) {
+                                final note = notes[index];
+                                return SwipeToDeleteTile(
+                                  key: ValueKey('swipe_note_${note.id}'),
+                                  actionWidth: 72,
                                   onDelete: () => _confirmDelete(context, note),
-                                ),
-                              );
-                            },
-                          );
-                        },
-                      ),
-          ),
-        ],
+                                  child: _NoteGridCard(
+                                    note: note,
+                                    onTap: () => Navigator.pushNamed(
+                                      context,
+                                      AppRoutes.noteEditor,
+                                      arguments: note,
+                                    ),
+                                    onDelete: () =>
+                                        _confirmDelete(context, note),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        ),
+            ),
+          ],
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         heroTag: 'notes_add_btn',

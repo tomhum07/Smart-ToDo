@@ -4,6 +4,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/date_formatter.dart';
+import '../../../core/utils/responsive_layout.dart';
 import '../../../data/models/task_model.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/schedule_provider.dart';
@@ -156,9 +157,14 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
         title: Text(_isEditing ? 'Chỉnh sửa công việc' : 'Thêm công việc'),
       ),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
+        child: ResponsiveCenterContainer(
+          maxWidth: 720,
+          child: ListView(
+            padding: EdgeInsets.symmetric(
+              horizontal: ResponsiveLayout.horizontalPadding(context),
+              vertical: 16,
+            ),
+            children: [
             ShadCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -190,7 +196,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                   const SizedBox(height: 6),
                   ShadInput(
                     controller: _titleController,
-                    placeholder: const Text('VD: Nộp bài tập Flutter'),
+                    placeholder: const Text('VD: Hoàn thành báo cáo tuần'),
                   ),
                   const SizedBox(height: 14),
                   Text('Mô tả chi tiết', style: shadTheme.textTheme.small),
@@ -366,6 +372,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
               ),
             ),
           ],
+          ),
         ),
       ),
     );

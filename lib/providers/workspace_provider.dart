@@ -422,14 +422,64 @@ class WorkspaceProvider extends ChangeNotifier {
     required String userUid,
   }) async {
     await _api.leaveWorkspace(workspaceId: workspaceId, userUid: userUid);
-    await _broadcastWorkspacePulse(workspaceId);
+    _broadcastWorkspacePulseInBackground(workspaceId);
     _overviewCache.remove(workspaceId);
     _overviewSignatures.remove(workspaceId);
+    _knownTaskIdsByWorkspace.remove(workspaceId);
+    _workspaces = _workspaces.where((w) => w.id != workspaceId).toList();
+    await _saveCachedWorkspaces(userUid);
     if (_activeOverview?.workspace.id == workspaceId) {
-      stopRealtimeSync();
+      stopRealtimeSync(notify: false);
       _activeOverview = null;
     }
+    notifyListeners();
     await loadMyWorkspaces(userUid);
+  }
+
+  Future<void> kickMember({
+    required String workspaceId,
+    required String targetUid,
+    required String requesterUid,
+  }) async {
+    final previous = _overviewCache[workspaceId];
+    // Cập nhật ngay trên UI (Optimistic)
+    _updateCachedOverview(workspaceId, (cur) {
+      final remaining =
+          cur.members.where((m) => m.userUid != targetUid).toList();
+      final updatedSummary = WorkspaceSummary(
+        id: cur.workspace.id,
+        name: cur.workspace.name,
+        description: cur.workspace.description,
+        inviteCode: cur.workspace.inviteCode,
+        ownerUid: cur.workspace.ownerUid,
+        ownerName: cur.workspace.ownerName,
+        memberCount: remaining.length,
+        createdAt: cur.workspace.createdAt,
+      );
+      return cur.copyWith(
+        workspace: updatedSummary,
+        members: remaining,
+      );
+    });
+
+    try {
+      await _api.kickMember(
+        workspaceId: workspaceId,
+        targetUid: targetUid,
+        requesterUid: requesterUid,
+      );
+      _broadcastWorkspacePulseInBackground(workspaceId);
+    } catch (e) {
+      if (previous != null) {
+        _overviewCache[workspaceId] = previous;
+        _overviewSignatures[workspaceId] = _computeSignature(previous);
+        if (_activeOverview?.workspace.id == workspaceId) {
+          _activeOverview = previous;
+        }
+        notifyListeners();
+      }
+      rethrow;
+    }
   }
 
   /// Cập nhật cache cục bộ ngay lập tức (Optimistic UI) để thao tác mượt 0ms,

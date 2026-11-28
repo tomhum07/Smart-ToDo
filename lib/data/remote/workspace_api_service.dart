@@ -93,6 +93,26 @@ class WorkspaceApiService {
     _throwIfError(res, 'Không thể rời Workspace');
   }
 
+  Future<void> kickMember({
+    required String workspaceId,
+    required String targetUid,
+    required String requesterUid,
+  }) async {
+    _ensureConfigured();
+    final res = await _client
+        .delete(
+          Uri.parse(
+            ApiConstants.kickWorkspaceMemberUrl(
+              workspaceId,
+              targetUid,
+              requesterUid,
+            ),
+          ),
+        )
+        .timeout(_timeout);
+    _throwIfError(res, 'Không thể mời thành viên ra khỏi nhóm');
+  }
+
   Future<WorkspaceOverview> getOverview(String workspaceId) async {
     _ensureConfigured();
     final res = await _client

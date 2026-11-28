@@ -50,6 +50,12 @@ class ApiConstants {
   static String get joinWorkspaceUrl => '$_base/api/workspaces/join';
   static String leaveWorkspaceUrl(String id, String userUid) =>
       '$_base/api/workspaces/$id/leave?userUid=${Uri.encodeQueryComponent(userUid)}';
+  static String kickWorkspaceMemberUrl(
+    String id,
+    String targetUid,
+    String requesterUid,
+  ) =>
+      '$_base/api/workspaces/$id/members/${Uri.encodeComponent(targetUid)}?requesterUid=${Uri.encodeQueryComponent(requesterUid)}';
   static String workspaceOverviewUrl(String id) =>
       '$_base/api/workspaces/$id/overview';
   static String workspaceSchedulesUrl(String id) =>

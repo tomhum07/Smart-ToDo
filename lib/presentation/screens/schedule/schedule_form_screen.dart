@@ -4,6 +4,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/date_formatter.dart';
+import '../../../core/utils/responsive_layout.dart';
 import '../../../data/models/schedule_model.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/schedule_provider.dart';
@@ -103,7 +104,9 @@ class _ScheduleFormScreenState extends State<ScheduleFormScreen> {
   Future<void> _save() async {
     final title = _titleController.text.trim();
     if (title.isEmpty) {
-      setState(() => _validationError = 'Vui lòng nhập tên môn học / sự kiện.');
+      setState(
+        () => _validationError = 'Vui lòng nhập tên sự kiện / lịch trình.',
+      );
       return;
     }
 
@@ -153,21 +156,26 @@ class _ScheduleFormScreenState extends State<ScheduleFormScreen> {
         title: Text(_isEditing ? 'Chỉnh sửa mục lớn' : 'Thêm mục lớn mới'),
       ),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
+        child: ResponsiveCenterContainer(
+          maxWidth: 720,
+          child: ListView(
+            padding: EdgeInsets.symmetric(
+              horizontal: ResponsiveLayout.horizontalPadding(context),
+              vertical: 16,
+            ),
+            children: [
             ShadCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Tên môn học / Sự kiện *',
+                    'Tên sự kiện / Lịch trình *',
                     style: shadTheme.textTheme.small,
                   ),
                   const SizedBox(height: 6),
                   ShadInput(
                     controller: _titleController,
-                    placeholder: const Text('VD: Lập trình Ứng dụng Mobile'),
+                    placeholder: const Text('VD: Họp kế hoạch tuần'),
                   ),
                   const SizedBox(height: 16),
                   Text('Ngày diễn ra', style: shadTheme.textTheme.small),
@@ -246,13 +254,13 @@ class _ScheduleFormScreenState extends State<ScheduleFormScreen> {
                   ),
                   const SizedBox(height: 14),
                   Text(
-                    'Phòng học / Địa điểm',
+                    'Địa điểm (tùy chọn)',
                     style: shadTheme.textTheme.small,
                   ),
                   const SizedBox(height: 6),
                   ShadInput(
                     controller: _locationController,
-                    placeholder: const Text('VD: Phòng B4-202'),
+                    placeholder: const Text('VD: Văn phòng, Quán cà phê, Online...'),
                   ),
                   const SizedBox(height: 14),
                   Text('Ghi chú thêm', style: shadTheme.textTheme.small),
@@ -319,6 +327,7 @@ class _ScheduleFormScreenState extends State<ScheduleFormScreen> {
               ),
             ),
           ],
+          ),
         ),
       ),
     );

@@ -11,6 +11,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/schedule_provider.dart';
 import '../../providers/workspace_provider.dart';
 import 'swipe_to_delete_tile.dart';
+import 'workspace_members_sheet.dart';
 
 /// Giao diện nội dung khi người dùng đang xem một Không gian Chia sẻ Nhóm (Shared Workspace).
 /// Hiển thị Mục lớn chung, Công việc nhỏ có phân công thành viên & Ghi chú chung theo ngày.
@@ -46,6 +47,7 @@ class SharedWorkspaceBody extends StatefulWidget {
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
+      constraints: const BoxConstraints(maxWidth: 560),
       builder: (sheetCtx) {
         return StatefulBuilder(
           builder: (ctx, setModalState) {
@@ -71,8 +73,7 @@ class SharedWorkspaceBody extends StatefulWidget {
                     const SizedBox(height: 14),
                     ShadInput(
                       controller: titleCtrl,
-                      placeholder:
-                          const Text('VD: Thuyết trình Lập trình Mobile'),
+                      placeholder: const Text('VD: Họp tổng kết tuần'),
                       autofocus: true,
                     ),
                     const SizedBox(height: 10),
@@ -132,7 +133,7 @@ class SharedWorkspaceBody extends StatefulWidget {
                     const SizedBox(height: 10),
                     ShadInput(
                       controller: locationCtrl,
-                      placeholder: const Text('Phòng học / Địa điểm'),
+                      placeholder: const Text('Địa điểm (tùy chọn)'),
                     ),
                     const SizedBox(height: 10),
                     ShadInput(
@@ -270,6 +271,7 @@ class SharedWorkspaceBody extends StatefulWidget {
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
+      constraints: const BoxConstraints(maxWidth: 560),
       builder: (sheetCtx) {
         return StatefulBuilder(
           builder: (ctx, setModalState) {
@@ -605,6 +607,7 @@ class SharedWorkspaceBody extends StatefulWidget {
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
+      constraints: const BoxConstraints(maxWidth: 560),
       builder: (sheetCtx) {
         return StatefulBuilder(
           builder: (ctx, setModalState) {
@@ -882,49 +885,74 @@ class _SharedWorkspaceBodyState extends State<SharedWorkspaceBody>
               children: [
                 Row(
                   children: [
-                    ShadBadge.secondary(
-                      child: Text('Mã mời: ${overview.workspace.inviteCode}'),
-                    ),
-                    const SizedBox(width: 6),
-                    ShadBadge.outline(
-                      child: Text('${overview.members.length} TV'),
-                    ),
-                    if (wsProvider.isRealtimeActive) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 7,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF16A34A).withValues(alpha: 0.14),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.circle,
-                              size: 7,
-                              color: Color(0xFF16A34A),
+                    Expanded(
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          ShadBadge.secondary(
+                            child: Text(
+                              'Mã mời: ${overview.workspace.inviteCode}',
                             ),
-                            SizedBox(width: 4),
-                            Text(
-                              'Live',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF16A34A),
+                          ),
+                          InkWell(
+                            borderRadius: BorderRadius.circular(999),
+                            onTap: () => WorkspaceMembersSheet.show(context),
+                            child: ShadBadge.outline(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(LucideIcons.users, size: 11),
+                                  const SizedBox(width: 4),
+                                  Text('${overview.members.length} TV'),
+                                ],
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                          if (wsProvider.isRealtimeActive)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF16A34A)
+                                    .withValues(alpha: 0.14),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.circle,
+                                    size: 7,
+                                    color: Color(0xFF16A34A),
+                                  ),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Live',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF16A34A),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
                       ),
-                    ],
-                    const Spacer(),
+                    ),
+                    const SizedBox(width: 4),
                     IconButton(
                       tooltip: 'Sao chép mã mời',
                       visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 32,
+                        minHeight: 32,
+                      ),
                       onPressed: () {
                         Clipboard.setData(
                           ClipboardData(text: overview.workspace.inviteCode),
@@ -936,8 +964,24 @@ class _SharedWorkspaceBodyState extends State<SharedWorkspaceBody>
                       icon: const Icon(LucideIcons.copy, size: 16),
                     ),
                     IconButton(
+                      tooltip: 'Quản lý nhóm & thành viên',
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 32,
+                        minHeight: 32,
+                      ),
+                      onPressed: () => WorkspaceMembersSheet.show(context),
+                      icon: const Icon(LucideIcons.settings, size: 16),
+                    ),
+                    IconButton(
                       tooltip: 'Làm mới',
                       visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 32,
+                        minHeight: 32,
+                      ),
                       onPressed: () =>
                           wsProvider.loadOverview(overview.workspace.id),
                       icon: const Icon(LucideIcons.refreshCw, size: 16),

@@ -5,6 +5,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../../core/constants/api_constants.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../core/utils/deadline_stream.dart';
+import '../../../core/utils/responsive_layout.dart';
 import '../../../data/models/holiday_model.dart';
 import '../../../data/remote/firebase_sync_service.dart';
 import '../../../data/remote/holiday_api_service.dart';
@@ -76,9 +77,13 @@ class _StatsTabState extends State<StatsTab> {
     final shadTheme = ShadTheme.of(context);
     final lastSynced = FirebaseSyncService.instance.lastSyncedAt;
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
+    final hPad = ResponsiveLayout.horizontalPadding(context);
+
+    return ResponsiveCenterContainer(
+      maxWidth: 820,
+      child: ListView(
+        padding: EdgeInsets.symmetric(horizontal: hPad, vertical: 16),
+        children: [
         StreamBuilder<DeadlineSummary>(
           stream: _deadlineStream,
           initialData: evaluateDeadlines(taskProvider.allTasks),
@@ -326,6 +331,7 @@ class _StatsTabState extends State<StatsTab> {
           ),
         ),
       ],
+      ),
     );
   }
 }

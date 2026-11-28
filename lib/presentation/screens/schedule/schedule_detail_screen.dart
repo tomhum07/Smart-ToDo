@@ -5,6 +5,7 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/routes/app_routes.dart';
 import '../../../core/utils/date_formatter.dart';
+import '../../../core/utils/responsive_layout.dart';
 import '../../../data/models/schedule_model.dart';
 import '../../../data/models/task_model.dart';
 import '../../../providers/schedule_provider.dart';
@@ -126,9 +127,16 @@ class ScheduleDetailScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 90),
-        children: [
+      body: ResponsiveCenterContainer(
+        maxWidth: 760,
+        child: ListView(
+          padding: EdgeInsets.fromLTRB(
+            ResponsiveLayout.horizontalPadding(context),
+            12,
+            ResponsiveLayout.horizontalPadding(context),
+            90,
+          ),
+          children: [
           // Thẻ thông tin Mục lớn
           ShadCard(
             child: Column(
@@ -373,6 +381,7 @@ class ScheduleDetailScreen extends StatelessWidget {
               );
             }),
         ],
+      ),
       ),
       floatingActionButton: FloatingActionButton(
         tooltip: 'Thêm việc nhỏ',
