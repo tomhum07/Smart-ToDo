@@ -50,7 +50,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final auth = context.read<AuthProvider>();
+    final auth = Provider.of<AuthProvider>(context);
     final userId = auth.effectiveUserId;
 
     if (_loadedForUserId != userId) {
@@ -75,9 +75,18 @@ class _MainShellScreenState extends State<MainShellScreen> {
       taskProvider.loadTasks(userId, force: true),
       noteProvider.loadNotes(userId, force: true),
       scheduleProvider.loadSchedules(userId, force: true),
+      workspaceProvider.restoreCachedWorkspaces(userId),
     ]);
 
-    // Nạp danh sách Shared Workspace từ .NET Web API (nếu đã deploy & gắn URL)
+    if (!mounted) return;
+    // Đồng bộ ngay các Workspace từ cache cục bộ vào ScheduleProvider (0ms)
+    if (workspaceProvider.workspaces.isNotEmpty) {
+      scheduleProvider.setSharedWorkspaces(
+        workspaceProvider.toWorkspaceOptions(),
+      );
+    }
+
+    // Sau đó tải mới danh sách Shared Workspace từ .NET Web API (có tự động retry)
     workspaceProvider.loadMyWorkspaces(userId).then((_) {
       if (!mounted) return;
       scheduleProvider.setSharedWorkspaces(
@@ -110,6 +119,12 @@ class _MainShellScreenState extends State<MainShellScreen> {
           if (didChange && mounted) {
             _reloadAllProviders(userId);
           }
+        });
+        workspaceProvider.loadMyWorkspaces(userId).then((_) {
+          if (!mounted) return;
+          scheduleProvider.setSharedWorkspaces(
+            workspaceProvider.toWorkspaceOptions(),
+          );
         });
       }
     });

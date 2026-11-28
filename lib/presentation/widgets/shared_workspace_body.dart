@@ -818,6 +818,95 @@ class _SharedWorkspaceBodyState extends State<SharedWorkspaceBody>
         widget.selectedDate,
       );
 
+  Future<void> _confirmDeleteSchedule(
+    String workspaceId,
+    WorkspaceSchedule schedule,
+  ) async {
+    final confirmed = await showShadDialog<bool>(
+      context: context,
+      builder: (ctx) => ShadDialog.alert(
+        title: const Text('Xóa lịch trình chung?'),
+        description: Text(
+          'Bạn có chắc muốn xóa "${schedule.title}" khỏi nhóm không? Các công việc gắn bên trong cũng sẽ bị xóa.',
+        ),
+        actions: [
+          ShadButton.outline(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          ShadButton.destructive(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      await context.read<WorkspaceProvider>().deleteSchedule(
+            workspaceId: workspaceId,
+            scheduleId: schedule.id,
+          );
+    }
+  }
+
+  Future<void> _confirmDeleteTask(
+    String workspaceId,
+    WorkspaceTask task,
+  ) async {
+    final confirmed = await showShadDialog<bool>(
+      context: context,
+      builder: (ctx) => ShadDialog.alert(
+        title: const Text('Xóa công việc nhóm?'),
+        description: Text('Bạn có chắc muốn xóa "${task.title}" không?'),
+        actions: [
+          ShadButton.outline(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          ShadButton.destructive(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      await context.read<WorkspaceProvider>().deleteTask(
+            workspaceId: workspaceId,
+            taskId: task.id,
+          );
+    }
+  }
+
+  Future<void> _confirmDeleteNote(
+    String workspaceId,
+    WorkspaceNote note,
+  ) async {
+    final confirmed = await showShadDialog<bool>(
+      context: context,
+      builder: (ctx) => ShadDialog.alert(
+        title: const Text('Xóa ghi chú chung?'),
+        description: Text('Bạn có chắc muốn xóa ghi chú "${note.title}" không?'),
+        actions: [
+          ShadButton.outline(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy'),
+          ),
+          ShadButton.destructive(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      await context.read<WorkspaceProvider>().deleteNote(
+            workspaceId: workspaceId,
+            noteId: note.id,
+          );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final wsProvider = context.watch<WorkspaceProvider>();
@@ -1056,9 +1145,9 @@ class _SharedWorkspaceBodyState extends State<SharedWorkspaceBody>
                 padding: const EdgeInsets.only(bottom: 10),
                 child: SwipeToDeleteTile(
                   key: ValueKey('swipe_ws_sched_${s.id}'),
-                  onDelete: () => wsProvider.deleteSchedule(
-                    workspaceId: overview.workspace.id,
-                    scheduleId: s.id,
+                  onDelete: () => _confirmDeleteSchedule(
+                    overview.workspace.id,
+                    s,
                   ),
                   child: ShadCard(
                     padding: const EdgeInsets.all(12),
@@ -1192,9 +1281,9 @@ class _SharedWorkspaceBodyState extends State<SharedWorkspaceBody>
                 padding: const EdgeInsets.only(bottom: 8),
                 child: SwipeToDeleteTile(
                   key: ValueKey('swipe_ws_note_${n.id}'),
-                  onDelete: () => wsProvider.deleteNote(
-                    workspaceId: overview.workspace.id,
-                    noteId: n.id,
+                  onDelete: () => _confirmDeleteNote(
+                    overview.workspace.id,
+                    n,
                   ),
                   child: ShadCard(
                     padding: const EdgeInsets.all(12),
@@ -1258,10 +1347,7 @@ class _SharedWorkspaceBodyState extends State<SharedWorkspaceBody>
         actionWidth: 74,
         showIcon: false,
         borderRadius: const BorderRadius.all(Radius.circular(8)),
-        onDelete: () => wsProvider.deleteTask(
-          workspaceId: workspaceId,
-          taskId: task.id,
-        ),
+        onDelete: () => _confirmDeleteTask(workspaceId, task),
         child: ColoredBox(
           color: shadTheme.colorScheme.card,
           child: AnimatedOpacity(
