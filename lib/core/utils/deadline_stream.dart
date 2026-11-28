@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import '../../data/models/task_model.dart';
+import '../../data/models/workspace_models.dart';
 
 /// Ảnh chụp trạng thái hạn chót và tiến độ công việc tại thời điểm hiện tại.
 class DeadlineSummary {
@@ -90,6 +91,28 @@ DeadlineSummary evaluateDeadlines(List<TaskModel> tasks) {
     mostUrgentTask: mostUrgent,
     evaluatedAt: now,
   );
+}
+
+/// Tính toán snapshot hạn chót cho danh sách công việc trong Không gian Nhóm (Shared Workspace).
+DeadlineSummary evaluateWorkspaceDeadlines(List<WorkspaceTask> tasks) {
+  final adapted = tasks
+      .map(
+        (t) => TaskModel(
+          id: t.id,
+          userId: t.assigneeUid ?? '',
+          scheduleId: t.scheduleId,
+          title: t.title,
+          description: t.description,
+          category: 'Nhóm',
+          priority: t.priority,
+          isCompleted: t.isCompleted,
+          dueDate: t.dueDate,
+          createdAt: t.updatedAt,
+          updatedAt: t.updatedAt,
+        ),
+      )
+      .toList();
+  return evaluateDeadlines(adapted);
 }
 
 /// Stream generator (async*/yield) phát cập nhật tiến độ & cảnh báo hạn chót thời gian thực.

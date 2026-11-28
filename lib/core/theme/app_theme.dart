@@ -119,6 +119,7 @@ class AppTheme {
         scrolledUnderElevation: 0,
       ),
       navigationBarTheme: NavigationBarThemeData(
+        height: 70,
         backgroundColor: colors.card,
         surfaceTintColor: Colors.transparent,
         indicatorColor: indicatorTint,
@@ -132,6 +133,8 @@ class AppTheme {
           final selected = states.contains(WidgetState.selected);
           return TextStyle(
             fontSize: 12,
+            height: 1.35,
+            leadingDistribution: TextLeadingDistribution.even,
             fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
             color: selected ? colors.primary : colors.mutedForeground,
           );
@@ -144,11 +147,15 @@ class AppTheme {
         unselectedIconTheme: IconThemeData(color: colors.mutedForeground),
         selectedLabelTextStyle: TextStyle(
           fontSize: 12,
+          height: 1.35,
+          leadingDistribution: TextLeadingDistribution.even,
           fontWeight: FontWeight.w700,
           color: colors.primary,
         ),
         unselectedLabelTextStyle: TextStyle(
           fontSize: 12,
+          height: 1.35,
+          leadingDistribution: TextLeadingDistribution.even,
           fontWeight: FontWeight.w500,
           color: colors.mutedForeground,
         ),

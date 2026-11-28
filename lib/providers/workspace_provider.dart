@@ -28,6 +28,7 @@ class WorkspaceProvider extends ChangeNotifier {
 
   WorkspaceOverview? _activeOverview;
   bool _isLoading = false;
+  bool _isLoadingWorkspaces = false;
   String? _errorMessage;
 
   String? _currentUserUid;
@@ -47,6 +48,7 @@ class WorkspaceProvider extends ChangeNotifier {
   List<WorkspaceSummary> get workspaces => List.unmodifiable(_workspaces);
   WorkspaceOverview? get activeOverview => _activeOverview;
   bool get isLoading => _isLoading;
+  bool get isLoadingWorkspaces => _isLoadingWorkspaces;
   String? get errorMessage => _errorMessage;
   bool get isConfigured => ApiConstants.isDotNetConfigured;
   bool get isRealtimeActive => _isRealtimeActive;
@@ -64,13 +66,18 @@ class WorkspaceProvider extends ChangeNotifier {
 
   static String _cacheKey(String userUid) => 'cached_workspaces_$userUid';
 
-  Future<void> _restoreCachedWorkspaces(String userUid) async {
+  /// Khôi phục ngay danh sách Workspace đã lưu cục bộ (0ms) khi mở app hoặc chuyển tài khoản.
+  Future<void> restoreCachedWorkspaces(String userUid) async {
+    if (userUid == 'local_guest_user') return;
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString(_cacheKey(userUid));
       if (raw == null || raw.isEmpty) return;
       final list = (jsonDecode(raw) as List)
-          .map((e) => WorkspaceSummary.fromJson(Map<String, dynamic>.from(e as Map)))
+          .map(
+            (e) =>
+                WorkspaceSummary.fromJson(Map<String, dynamic>.from(e as Map)),
+          )
           .toList();
       if (list.isNotEmpty) {
         _workspaces = list;
@@ -94,23 +101,43 @@ class WorkspaceProvider extends ChangeNotifier {
   Future<void> loadMyWorkspaces(String userUid) async {
     _currentUserUid = userUid;
     if (!isConfigured || userUid == 'local_guest_user') return;
+    if (_isLoadingWorkspaces) return;
 
     // Hiển thị ngay danh sách Workspace đã cache cục bộ (0ms) trong lúc chờ server Render thức dậy
     if (_workspaces.isEmpty) {
-      await _restoreCachedWorkspaces(userUid);
+      await restoreCachedWorkspaces(userUid);
     }
 
-    _isLoading = true;
+    _isLoadingWorkspaces = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      _workspaces = await _api.getMyWorkspaces(userUid);
-      await _saveCachedWorkspaces(userUid);
-    } catch (e) {
-      _errorMessage = e.toString().replaceFirst('Exception: ', '');
+      List<WorkspaceSummary>? fetched;
+      Object? lastError;
+
+      // Tự động thử lại tối đa 2 lần nếu Render Free tier đang khởi động (502/503/timeout)
+      for (var attempt = 0; attempt < 3; attempt++) {
+        try {
+          fetched = await _api.getMyWorkspaces(userUid);
+          lastError = null;
+          break;
+        } catch (e) {
+          lastError = e;
+          if (attempt < 2) {
+            await Future<void>.delayed(Duration(seconds: 2 * (attempt + 1)));
+          }
+        }
+      }
+
+      if (fetched != null) {
+        _workspaces = fetched;
+        await _saveCachedWorkspaces(userUid);
+      } else if (lastError != null) {
+        _errorMessage = lastError.toString().replaceFirst('Exception: ', '');
+      }
     } finally {
-      _isLoading = false;
+      _isLoadingWorkspaces = false;
       notifyListeners();
     }
   }
@@ -788,6 +815,7 @@ class WorkspaceProvider extends ChangeNotifier {
     _scheduledTaskSignatures.clear();
     _activeOverview = null;
     _isLoading = false;
+    _isLoadingWorkspaces = false;
     _errorMessage = null;
     _currentUserUid = null;
     notifyListeners();

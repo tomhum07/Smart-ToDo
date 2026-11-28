@@ -101,7 +101,8 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
     if (wsProvider.workspaces.isNotEmpty &&
         scheduleProvider.workspaces.length <= 1) {
       scheduleProvider.setSharedWorkspaces(wsProvider.toWorkspaceOptions());
-    } else if (wsProvider.workspaces.isEmpty && !wsProvider.isLoading) {
+    } else if (wsProvider.workspaces.isEmpty &&
+        !wsProvider.isLoadingWorkspaces) {
       // Tự động thử tải lại nếu trước đó server đang ngủ (cold start) hoặc lỗi mạng
       _refreshWorkspaces();
     }
@@ -145,10 +146,10 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
                       IconButton(
                         tooltip: 'Tải lại danh sách nhóm',
                         visualDensity: VisualDensity.compact,
-                        onPressed: liveWsProvider.isLoading
+                        onPressed: liveWsProvider.isLoadingWorkspaces
                             ? null
                             : () => _refreshWorkspaces(),
-                        icon: liveWsProvider.isLoading
+                        icon: liveWsProvider.isLoadingWorkspaces
                             ? const SizedBox(
                                 width: 16,
                                 height: 16,
@@ -206,7 +207,7 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
                               },
                             );
                           }),
-                          if (liveWsProvider.isLoading &&
+                          if (liveWsProvider.isLoadingWorkspaces &&
                               liveWsProvider.workspaces.isEmpty)
                             Padding(
                               padding: const EdgeInsets.symmetric(vertical: 12),
@@ -230,7 +231,7 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
                             ),
                           if (liveWsProvider.errorMessage != null &&
                               liveWsProvider.workspaces.isEmpty &&
-                              !liveWsProvider.isLoading)
+                              !liveWsProvider.isLoadingWorkspaces)
                             Padding(
                               padding: const EdgeInsets.symmetric(vertical: 8),
                               child: Text(

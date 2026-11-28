@@ -7,12 +7,14 @@ import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../../../data/remote/firebase_sync_service.dart';
+import '../../../data/services/app_update_service.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/note_provider.dart';
 import '../../../providers/schedule_provider.dart';
 import '../../../providers/task_provider.dart';
 import '../../../providers/theme_provider.dart';
 import '../../../providers/workspace_provider.dart';
+import '../../widgets/update_dialog.dart';
 import '../dashboard/stats_tab.dart';
 import '../notes/notes_tab.dart';
 import '../profile/profile_tab.dart';
@@ -32,6 +34,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
   String? _loadedForUserId;
   StreamSubscription<DatabaseEvent>? _realtimeSyncSub;
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
+  Timer? _updateCheckTimer;
 
   static const _titles = [
     'Lịch & Công việc',
@@ -48,9 +51,33 @@ class _MainShellScreenState extends State<MainShellScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    // Tự động kiểm tra bản cập nhật mới từ GitHub Releases sau khi mở app 3 giây
+    _updateCheckTimer = Timer(
+      const Duration(seconds: 3),
+      _checkAppUpdateSilently,
+    );
+  }
+
+  Future<void> _checkAppUpdateSilently() async {
+    if (!mounted) return;
+    try {
+      final update = await AppUpdateService.instance.checkForUpdate(
+        onlyOncePerSession: true,
+      );
+      if (update != null && mounted) {
+        await AppUpdateDialog.show(context, update);
+      }
+    } catch (e) {
+      debugPrint('Bỏ qua kiểm tra cập nhật tự động: $e');
+    }
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final auth = context.read<AuthProvider>();
+    final auth = Provider.of<AuthProvider>(context);
     final userId = auth.effectiveUserId;
 
     if (_loadedForUserId != userId) {
@@ -75,9 +102,18 @@ class _MainShellScreenState extends State<MainShellScreen> {
       taskProvider.loadTasks(userId, force: true),
       noteProvider.loadNotes(userId, force: true),
       scheduleProvider.loadSchedules(userId, force: true),
+      workspaceProvider.restoreCachedWorkspaces(userId),
     ]);
 
-    // Nạp danh sách Shared Workspace từ .NET Web API (nếu đã deploy & gắn URL)
+    if (!mounted) return;
+    // Đồng bộ ngay các Workspace từ cache cục bộ vào ScheduleProvider (0ms)
+    if (workspaceProvider.workspaces.isNotEmpty) {
+      scheduleProvider.setSharedWorkspaces(
+        workspaceProvider.toWorkspaceOptions(),
+      );
+    }
+
+    // Sau đó tải mới danh sách Shared Workspace từ .NET Web API (có tự động retry)
     workspaceProvider.loadMyWorkspaces(userId).then((_) {
       if (!mounted) return;
       scheduleProvider.setSharedWorkspaces(
@@ -111,6 +147,12 @@ class _MainShellScreenState extends State<MainShellScreen> {
             _reloadAllProviders(userId);
           }
         });
+        workspaceProvider.loadMyWorkspaces(userId).then((_) {
+          if (!mounted) return;
+          scheduleProvider.setSharedWorkspaces(
+            workspaceProvider.toWorkspaceOptions(),
+          );
+        });
       }
     });
   }
@@ -125,6 +167,7 @@ class _MainShellScreenState extends State<MainShellScreen> {
 
   @override
   void dispose() {
+    _updateCheckTimer?.cancel();
     _realtimeSyncSub?.cancel();
     _connectivitySub?.cancel();
     super.dispose();
