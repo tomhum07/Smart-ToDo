@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
@@ -13,6 +15,7 @@ import '../../../providers/auth_provider.dart';
 import '../../../providers/note_provider.dart';
 import '../../../providers/schedule_provider.dart';
 import '../../../providers/task_provider.dart';
+import '../../../providers/workspace_provider.dart';
 
 /// Tab Thống kê thời gian thực (StreamBuilder + async*/yield + LayoutBuilder + FutureBuilder REST API).
 class StatsTab extends StatefulWidget {
@@ -23,17 +26,32 @@ class StatsTab extends StatefulWidget {
 }
 
 class _StatsTabState extends State<StatsTab> {
-  late Stream<DeadlineSummary> _deadlineStream;
+  Timer? _tickTimer;
   late Future<List<HolidayModel>> _holidaysFuture;
   final HolidayApiService _holidayApi = HolidayApiService();
   bool _isManualSyncing = false;
+  String _selectedDeadlineSpaceId = 'all'; // 'all' | 'personal' | workspaceId
 
   @override
   void initState() {
     super.initState();
-    _deadlineStream =
-        watchDeadlineStream(() => context.read<TaskProvider>().allTasks);
-    _holidaysFuture = _holidayApi.fetchVietnamHolidays(DateTime.now().year);
+    // Cập nhật tiến độ & đếm ngược quá hạn mỗi 15 giây (tránh lỗi Stream single-subscription khi cuộn ListView)
+    _tickTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (mounted) setState(() {});
+    });
+    _holidaysFuture = _holidayApi
+        .fetchVietnamHolidays(DateTime.now().year)
+        .catchError((_) => <HolidayModel>[]);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<WorkspaceProvider>().prefetchAllOverviews();
+    });
+  }
+
+  @override
+  void dispose() {
+    _tickTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _syncNow() async {
@@ -74,90 +92,90 @@ class _StatsTabState extends State<StatsTab> {
     final taskProvider = context.watch<TaskProvider>();
     final noteProvider = context.watch<NoteProvider>();
     final scheduleProvider = context.watch<ScheduleProvider>();
+    final workspaceProvider = context.watch<WorkspaceProvider>();
     final shadTheme = ShadTheme.of(context);
     final lastSynced = FirebaseSyncService.instance.lastSyncedAt;
 
     final hPad = ResponsiveLayout.horizontalPadding(context);
+    final summary = evaluateDeadlines(taskProvider.allTasks);
+    final activeTasks = summary.totalCount - summary.completedCount;
 
     return ResponsiveCenterContainer(
       maxWidth: 820,
       child: ListView(
         padding: EdgeInsets.symmetric(horizontal: hPad, vertical: 16),
         children: [
-        StreamBuilder<DeadlineSummary>(
-          stream: _deadlineStream,
-          initialData: evaluateDeadlines(taskProvider.allTasks),
-          builder: (context, snapshot) {
-            final summary = evaluateDeadlines(taskProvider.allTasks);
-            final activeTasks = summary.totalCount - summary.completedCount;
-
-            return ShadCard(
-              title: const Text('Tiến độ Công việc'),
-              description: Text(
-                'Đã hoàn thành ${summary.completedCount} / ${summary.totalCount} công việc (${summary.completionPercent}%).',
-              ),
-              child: Padding(
-                padding: const EdgeInsets.only(top: 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+        ShadCard(
+          title: const Text('Tiến độ Công việc'),
+          description: Text(
+            'Đã hoàn thành ${summary.completedCount} / ${summary.totalCount} công việc (${summary.completionPercent}%).',
+          ),
+          child: Padding(
+            padding: const EdgeInsets.only(top: 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    return Container(
+                      height: 12,
+                      width: constraints.maxWidth,
+                      decoration: BoxDecoration(
+                        color: shadTheme.colorScheme.secondary,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      alignment: Alignment.centerLeft,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        height: 12,
+                        width: constraints.maxWidth * summary.completionRate,
+                        decoration: BoxDecoration(
+                          color: shadTheme.colorScheme.primary,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        return Container(
-                          height: 12,
-                          width: constraints.maxWidth,
-                          decoration: BoxDecoration(
-                            color: shadTheme.colorScheme.secondary,
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          alignment: Alignment.centerLeft,
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 300),
-                            height: 12,
-                            width:
-                                constraints.maxWidth * summary.completionRate,
-                            decoration: BoxDecoration(
-                              color: shadTheme.colorScheme.primary,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                          ),
-                        );
-                      },
+                    _StatMetric(
+                      label: 'Đang làm',
+                      value: '$activeTasks',
                     ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _StatMetric(
-                          label: 'Đang làm',
-                          value: '$activeTasks',
-                        ),
-                        _StatMetric(
-                          label: 'Đã xong',
-                          value: '${summary.completedCount}',
-                          valueColor: const Color(0xFF16A34A),
-                        ),
-                        _StatMetric(
-                          label: 'Sắp đến hạn',
-                          value: '${summary.dueSoonCount}',
-                          valueColor: summary.dueSoonCount > 0
-                              ? const Color(0xFFD97706)
-                              : null,
-                        ),
-                        _StatMetric(
-                          label: 'Quá hạn',
-                          value: '${summary.overdueCount}',
-                          valueColor: summary.overdueCount > 0
-                              ? const Color(0xFFDC2626)
-                              : null,
-                        ),
-                      ],
+                    _StatMetric(
+                      label: 'Đã xong',
+                      value: '${summary.completedCount}',
+                      valueColor: const Color(0xFF16A34A),
+                    ),
+                    _StatMetric(
+                      label: 'Sắp đến hạn',
+                      value: '${summary.dueSoonCount}',
+                      valueColor: summary.dueSoonCount > 0
+                          ? const Color(0xFFD97706)
+                          : null,
+                    ),
+                    _StatMetric(
+                      label: 'Quá hạn',
+                      value: '${summary.overdueCount}',
+                      valueColor: summary.overdueCount > 0
+                          ? const Color(0xFFDC2626)
+                          : null,
                     ),
                   ],
                 ),
-              ),
-            );
-          },
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        _buildDeadlineBreakdownCard(
+          context,
+          shadTheme: shadTheme,
+          taskProvider: taskProvider,
+          workspaceProvider: workspaceProvider,
         ),
         const SizedBox(height: 16),
         ShadCard(
@@ -331,6 +349,398 @@ class _StatsTabState extends State<StatsTab> {
           ),
         ),
       ],
+      ),
+    );
+  }
+
+  Widget _buildDeadlineBreakdownCard(
+    BuildContext context, {
+    required ShadThemeData shadTheme,
+    required TaskProvider taskProvider,
+    required WorkspaceProvider workspaceProvider,
+  }) {
+    final now = DateTime.now();
+    final nowMs = now.millisecondsSinceEpoch;
+    final soonLimitMs =
+        now.add(const Duration(hours: 24)).millisecondsSinceEpoch;
+
+    // Xây dựng danh sách nhóm không gian (Cá nhân + từng Workspace chung)
+    final spaces = <_SpaceDeadlineGroup>[];
+
+    // 1. Không gian Cá nhân
+    final personalOverdue = <_DeadlineItem>[];
+    final personalSoon = <_DeadlineItem>[];
+    for (final t in taskProvider.allTasks) {
+      if (t.isCompleted || t.dueDate == null) continue;
+      final item = _DeadlineItem(
+        title: t.title,
+        dueDate: t.dueDate!,
+        subtitle: t.category,
+        isOverdue: t.dueDate! < nowMs,
+      );
+      if (t.dueDate! < nowMs) {
+        personalOverdue.add(item);
+      } else if (t.dueDate! <= soonLimitMs) {
+        personalSoon.add(item);
+      }
+    }
+    personalOverdue.sort((a, b) => a.dueDate.compareTo(b.dueDate));
+    personalSoon.sort((a, b) => a.dueDate.compareTo(b.dueDate));
+    spaces.add(
+      _SpaceDeadlineGroup(
+        id: 'personal',
+        name: 'Không gian Cá nhân',
+        isPersonal: true,
+        overdue: personalOverdue,
+        dueSoon: personalSoon,
+      ),
+    );
+
+    // 2. Các Không gian Chia sẻ Nhóm
+    for (final ws in workspaceProvider.workspaces) {
+      final overview = workspaceProvider.overviewCache[ws.id] ??
+          (workspaceProvider.activeOverview?.workspace.id == ws.id
+              ? workspaceProvider.activeOverview
+              : null);
+      final overdue = <_DeadlineItem>[];
+      final soon = <_DeadlineItem>[];
+      if (overview != null) {
+        for (final t in overview.tasks) {
+          if (t.isCompleted || t.dueDate == null) continue;
+          final item = _DeadlineItem(
+            title: t.title,
+            dueDate: t.dueDate!,
+            subtitle: t.assigneeName != null && t.assigneeName!.isNotEmpty
+                ? 'Phụ trách: ${t.assigneeName}'
+                : 'Cả nhóm',
+            isOverdue: t.dueDate! < nowMs,
+          );
+          if (t.dueDate! < nowMs) {
+            overdue.add(item);
+          } else if (t.dueDate! <= soonLimitMs) {
+            soon.add(item);
+          }
+        }
+        overdue.sort((a, b) => a.dueDate.compareTo(b.dueDate));
+        soon.sort((a, b) => a.dueDate.compareTo(b.dueDate));
+      }
+      spaces.add(
+        _SpaceDeadlineGroup(
+          id: ws.id,
+          name: ws.name,
+          isPersonal: false,
+          overdue: overdue,
+          dueSoon: soon,
+          isLoading: overview == null,
+        ),
+      );
+    }
+
+    // Nếu không gian đang lọc không còn tồn tại -> quay về 'all'
+    final activeFilter = _selectedDeadlineSpaceId == 'all' ||
+            spaces.any((s) => s.id == _selectedDeadlineSpaceId)
+        ? _selectedDeadlineSpaceId
+        : 'all';
+
+    final visibleSpaces = activeFilter == 'all'
+        ? spaces
+        : spaces.where((s) => s.id == activeFilter).toList();
+
+    return ShadCard(
+      title: const Text('Chi tiết Quá hạn & Sắp đến hạn'),
+      description: const Text(
+        'Liệt kê chi tiết công việc đã quá hạn và sắp đến hạn (< 24h) theo từng không gian.',
+      ),
+      child: Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                ChoiceChip(
+                  label: const Text('Tất cả'),
+                  selected: activeFilter == 'all',
+                  onSelected: (_) =>
+                      setState(() => _selectedDeadlineSpaceId = 'all'),
+                ),
+                ...spaces.map((s) {
+                  final alertCount = s.overdue.length + s.dueSoon.length;
+                  return ChoiceChip(
+                    label: Text(
+                      alertCount > 0 ? '${s.name} ($alertCount)' : s.name,
+                    ),
+                    selected: activeFilter == s.id,
+                    onSelected: (_) =>
+                        setState(() => _selectedDeadlineSpaceId = s.id),
+                  );
+                }),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ...visibleSpaces.map((space) {
+              final hasAny =
+                  space.overdue.isNotEmpty || space.dueSoon.isNotEmpty;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: shadTheme.colorScheme.secondary
+                        .withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: shadTheme.colorScheme.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            space.isPersonal
+                                ? LucideIcons.user
+                                : LucideIcons.users,
+                            size: 15,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              space.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: shadTheme.textTheme.small.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          if (space.overdue.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 4),
+                              child: _MiniCountPill(
+                                label: '${space.overdue.length} quá hạn',
+                                color: const Color(0xFFDC2626),
+                              ),
+                            ),
+                          if (space.dueSoon.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 4),
+                              child: _MiniCountPill(
+                                label: '${space.dueSoon.length} sắp hạn',
+                                color: const Color(0xFFD97706),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      if (space.isLoading)
+                        Text(
+                          'Đang tải dữ liệu nhóm...',
+                          style:
+                              shadTheme.textTheme.muted.copyWith(fontSize: 12),
+                        )
+                      else if (!hasAny)
+                        Row(
+                          children: [
+                            const Icon(
+                              LucideIcons.circleCheck,
+                              size: 14,
+                              color: Color(0xFF16A34A),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                'Không có công việc quá hạn hay sắp đến hạn.',
+                                style: shadTheme.textTheme.muted
+                                    .copyWith(fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        )
+                      else ...[
+                        if (space.overdue.isNotEmpty) ...[
+                          const Text(
+                            'Đã quá hạn',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFDC2626),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          ...space.overdue.map(
+                            (item) => _DeadlineTaskRow(
+                              item: item,
+                              now: now,
+                              shadTheme: shadTheme,
+                            ),
+                          ),
+                        ],
+                        if (space.dueSoon.isNotEmpty) ...[
+                          if (space.overdue.isNotEmpty)
+                            const SizedBox(height: 8),
+                          const Text(
+                            'Sắp đến hạn (< 24 giờ)',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFFD97706),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          ...space.dueSoon.map(
+                            (item) => _DeadlineTaskRow(
+                              item: item,
+                              now: now,
+                              shadTheme: shadTheme,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SpaceDeadlineGroup {
+  final String id;
+  final String name;
+  final bool isPersonal;
+  final List<_DeadlineItem> overdue;
+  final List<_DeadlineItem> dueSoon;
+  final bool isLoading;
+
+  const _SpaceDeadlineGroup({
+    required this.id,
+    required this.name,
+    required this.isPersonal,
+    required this.overdue,
+    required this.dueSoon,
+    this.isLoading = false,
+  });
+}
+
+class _DeadlineItem {
+  final String title;
+  final int dueDate;
+  final String subtitle;
+  final bool isOverdue;
+
+  const _DeadlineItem({
+    required this.title,
+    required this.dueDate,
+    required this.subtitle,
+    required this.isOverdue,
+  });
+}
+
+class _MiniCountPill extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _MiniCountPill({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
+    );
+  }
+}
+
+class _DeadlineTaskRow extends StatelessWidget {
+  final _DeadlineItem item;
+  final DateTime now;
+  final ShadThemeData shadTheme;
+
+  const _DeadlineTaskRow({
+    required this.item,
+    required this.now,
+    required this.shadTheme,
+  });
+
+  String _relativeText() {
+    final diff = DateTime.fromMillisecondsSinceEpoch(item.dueDate).difference(
+      now,
+    );
+    if (diff.isNegative) {
+      final abs = diff.abs();
+      if (abs.inDays >= 1) return 'Trễ ${abs.inDays} ngày';
+      if (abs.inHours >= 1) return 'Trễ ${abs.inHours}g ${abs.inMinutes % 60}p';
+      return 'Trễ ${abs.inMinutes.clamp(1, 59)} phút';
+    }
+    if (diff.inHours >= 1) {
+      return 'Còn ${diff.inHours}g ${diff.inMinutes % 60}p';
+    }
+    return 'Còn ${diff.inMinutes.clamp(1, 59)} phút';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color =
+        item.isOverdue ? const Color(0xFFDC2626) : const Color(0xFFD97706);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 5),
+            child: Icon(Icons.circle, size: 7, color: color),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: shadTheme.textTheme.small.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  '${DateFormatter.formatEpochDateTime(item.dueDate)} • ${item.subtitle}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: shadTheme.textTheme.muted.copyWith(fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            _relativeText(),
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
   }

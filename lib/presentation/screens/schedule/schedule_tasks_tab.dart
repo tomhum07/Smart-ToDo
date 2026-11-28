@@ -479,6 +479,21 @@ class _ScheduleTasksTabState extends State<ScheduleTasksTab> {
     final scheduleProvider = context.watch<ScheduleProvider>();
     final taskProvider = context.watch<TaskProvider>();
     final workspaceProvider = context.watch<WorkspaceProvider>();
+
+    // Nếu người dùng vừa bị kick hoặc nhóm bị xóa theo thời gian thực -> xóa khỏi danh sách & chuyển về Cá nhân
+    if (workspaceProvider.removedWorkspaceNotice != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final notice = workspaceProvider.consumeRemovedWorkspaceNotice();
+        if (notice == null) return;
+        context.read<ScheduleProvider>().setSharedWorkspaces(
+              workspaceProvider.toWorkspaceOptions(),
+            );
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(notice)),
+        );
+      });
+    }
     final shadTheme = ShadTheme.of(context);
     final activeWorkspace = scheduleProvider.activeWorkspace;
     final weekDates = scheduleProvider.currentWeekDates;
