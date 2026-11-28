@@ -30,6 +30,7 @@ class WorkspaceProvider extends ChangeNotifier {
   bool _isLoading = false;
   bool _isLoadingWorkspaces = false;
   String? _errorMessage;
+  String? _removedWorkspaceNotice;
 
   String? _currentUserUid;
   String? _realtimeWorkspaceId;
@@ -46,12 +47,76 @@ class WorkspaceProvider extends ChangeNotifier {
         _notifications = notifications ?? NotificationService.instance;
 
   List<WorkspaceSummary> get workspaces => List.unmodifiable(_workspaces);
+  Map<String, WorkspaceOverview> get overviewCache =>
+      Map.unmodifiable(_overviewCache);
   WorkspaceOverview? get activeOverview => _activeOverview;
   bool get isLoading => _isLoading;
   bool get isLoadingWorkspaces => _isLoadingWorkspaces;
   String? get errorMessage => _errorMessage;
+  String? get removedWorkspaceNotice => _removedWorkspaceNotice;
   bool get isConfigured => ApiConstants.isDotNetConfigured;
   bool get isRealtimeActive => _isRealtimeActive;
+
+  String? consumeRemovedWorkspaceNotice() {
+    final msg = _removedWorkspaceNotice;
+    _removedWorkspaceNotice = null;
+    return msg;
+  }
+
+  /// Tải ngầm overview cho các nhóm chưa có trong cache (dùng cho tab Thống kê).
+  Future<void> prefetchAllOverviews() async {
+    if (!isConfigured || _workspaces.isEmpty) return;
+    var updatedAny = false;
+    for (final ws in List<WorkspaceSummary>.from(_workspaces)) {
+      if (_overviewCache.containsKey(ws.id)) continue;
+      try {
+        final fresh = await _api.getOverview(ws.id);
+        final uid = _currentUserUid;
+        if (uid != null &&
+            uid != 'local_guest_user' &&
+            !fresh.members.any((m) => m.userUid == uid)) {
+          _evictWorkspaceLocally(ws.id);
+          continue;
+        }
+        _overviewCache[ws.id] = fresh;
+        _overviewSignatures[ws.id] = _computeSignature(fresh);
+        updatedAny = true;
+      } catch (e) {
+        final msg = e.toString().toLowerCase();
+        if (msg.contains('404') || msg.contains('không tồn tại')) {
+          _evictWorkspaceLocally(ws.id);
+        }
+      }
+    }
+    if (updatedAny) {
+      notifyListeners();
+    }
+  }
+
+  void _evictWorkspaceLocally(String workspaceId, {String? notice}) {
+    stopRealtimeSync(onlyIfWorkspaceId: workspaceId, notify: false);
+    final taskIds = _knownTaskIdsByWorkspace.remove(workspaceId);
+    if (taskIds != null) {
+      for (final id in taskIds) {
+        _scheduledTaskSignatures.remove(id);
+        _taskRemindMinutes.remove(id);
+        unawaited(_notifications.cancelWorkspaceTaskReminder(id));
+      }
+    }
+    _overviewCache.remove(workspaceId);
+    _overviewSignatures.remove(workspaceId);
+    _workspaces = _workspaces.where((w) => w.id != workspaceId).toList();
+    if (_activeOverview?.workspace.id == workspaceId) {
+      _activeOverview = null;
+    }
+    if (_currentUserUid != null && _currentUserUid != 'local_guest_user') {
+      unawaited(_saveCachedWorkspaces(_currentUserUid!));
+    }
+    if (notice != null) {
+      _removedWorkspaceNotice = notice;
+    }
+    notifyListeners();
+  }
 
   List<WorkspaceOption> toWorkspaceOptions() => _workspaces
       .map(
@@ -170,7 +235,15 @@ class WorkspaceProvider extends ChangeNotifier {
       final fresh = await _api.getOverview(workspaceId);
       _applyOverview(fresh, isRealtimeUpdate: false);
     } catch (e) {
-      _errorMessage = e.toString().replaceFirst('Exception: ', '');
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('404') || msg.contains('không tồn tại')) {
+        _evictWorkspaceLocally(
+          workspaceId,
+          notice: 'Nhóm này đã bị xóa hoặc không còn tồn tại.',
+        );
+      } else {
+        _errorMessage = e.toString().replaceFirst('Exception: ', '');
+      }
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -273,7 +346,15 @@ class WorkspaceProvider extends ChangeNotifier {
         notifyListeners();
       }
     } catch (e) {
-      debugPrint('Làm mới ngầm Workspace tạm hoãn: $e');
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('404') || msg.contains('không tồn tại')) {
+        _evictWorkspaceLocally(
+          workspaceId,
+          notice: 'Nhóm này đã bị nhóm trưởng xóa.',
+        );
+      } else {
+        debugPrint('Làm mới ngầm Workspace tạm hoãn: $e');
+      }
     } finally {
       _isRefreshingSilently = false;
     }
@@ -299,6 +380,20 @@ class WorkspaceProvider extends ChangeNotifier {
     required bool isRealtimeUpdate,
   }) {
     final wsId = fresh.workspace.id;
+
+    // Kiểm tra realtime: nếu tài khoản hiện tại đã bị kick hoặc rời nhóm -> xóa ngay khỏi máy & đẩy về Cá nhân
+    final uid = _currentUserUid;
+    if (uid != null &&
+        uid != 'local_guest_user' &&
+        !fresh.members.any((m) => m.userUid == uid)) {
+      _evictWorkspaceLocally(
+        wsId,
+        notice:
+            'Bạn đã bị mời ra khỏi nhóm "${fresh.workspace.name}" hoặc không còn là thành viên.',
+      );
+      return false;
+    }
+
     final newSig = _computeSignature(fresh);
     final oldSig = _overviewSignatures[wsId];
     final previousTaskIds = _knownTaskIdsByWorkspace[wsId];
@@ -450,16 +545,7 @@ class WorkspaceProvider extends ChangeNotifier {
   }) async {
     await _api.leaveWorkspace(workspaceId: workspaceId, userUid: userUid);
     _broadcastWorkspacePulseInBackground(workspaceId);
-    _overviewCache.remove(workspaceId);
-    _overviewSignatures.remove(workspaceId);
-    _knownTaskIdsByWorkspace.remove(workspaceId);
-    _workspaces = _workspaces.where((w) => w.id != workspaceId).toList();
-    await _saveCachedWorkspaces(userUid);
-    if (_activeOverview?.workspace.id == workspaceId) {
-      stopRealtimeSync(notify: false);
-      _activeOverview = null;
-    }
-    notifyListeners();
+    _evictWorkspaceLocally(workspaceId);
     await loadMyWorkspaces(userUid);
   }
 

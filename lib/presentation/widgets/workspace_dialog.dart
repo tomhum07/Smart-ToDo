@@ -23,6 +23,7 @@ class _WorkspaceDialogState extends State<WorkspaceDialog> {
 
   int _modeIndex = 0; // 0 = Tạo Workspace mới, 1 = Tham gia bằng mã
   bool _isLoading = false;
+  bool _hasJoined = false;
   String? _createdCode;
   String? _errorMessage;
   String? _successMessage;
@@ -110,6 +111,7 @@ class _WorkspaceDialogState extends State<WorkspaceDialog> {
 
       if (!mounted) return;
       setState(() {
+        _hasJoined = true;
         _successMessage = 'Đã tham gia không gian "${joined.name}"!';
       });
     } catch (e) {
@@ -186,11 +188,13 @@ class _WorkspaceDialogState extends State<WorkspaceDialog> {
             if (_modeIndex == 0) ...[
               ShadInput(
                 controller: _nameController,
+                readOnly: _createdCode != null,
                 placeholder: const Text('VD: Nhóm Dự án A'),
               ),
               const SizedBox(height: 10),
               ShadInput(
                 controller: _descController,
+                readOnly: _createdCode != null,
                 placeholder: const Text('Mô tả ngắn (tùy chọn)'),
               ),
               const SizedBox(height: 12),
@@ -227,31 +231,51 @@ class _WorkspaceDialogState extends State<WorkspaceDialog> {
                 const SizedBox(height: 10),
               ],
               ShadButton(
-                onPressed: _isLoading ? null : _handleCreate,
+                onPressed:
+                    (_isLoading || _createdCode != null) ? null : _handleCreate,
                 child: _isLoading
                     ? const SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Tạo Không gian & Lấy mã 6 ký tự'),
+                    : _createdCode != null
+                        ? const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(LucideIcons.check, size: 16),
+                              SizedBox(width: 6),
+                              Text('Đã tạo nhóm thành công'),
+                            ],
+                          )
+                        : const Text('Tạo Không gian & Lấy mã 6 ký tự'),
               ),
             ] else ...[
               ShadInput(
                 controller: _codeController,
+                readOnly: _hasJoined,
                 placeholder: const Text('Nhập mã mời 6 ký tự (VD: AB12CD)'),
                 textCapitalization: TextCapitalization.characters,
               ),
               const SizedBox(height: 12),
               ShadButton(
-                onPressed: _isLoading ? null : _handleJoin,
+                onPressed: (_isLoading || _hasJoined) ? null : _handleJoin,
                 child: _isLoading
                     ? const SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Tham gia Không gian nhóm'),
+                    : _hasJoined
+                        ? const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(LucideIcons.check, size: 16),
+                              SizedBox(width: 6),
+                              Text('Đã tham gia nhóm'),
+                            ],
+                          )
+                        : const Text('Tham gia Không gian nhóm'),
               ),
             ],
             if (_errorMessage != null) ...[

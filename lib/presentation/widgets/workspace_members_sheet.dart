@@ -155,9 +155,14 @@ class _WorkspaceMembersSheetState extends State<WorkspaceMembersSheet> {
     final overview = wsProvider.activeOverview;
 
     if (overview == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        }
+      });
       return const Padding(
         padding: EdgeInsets.all(24),
-        child: Center(child: Text('Không tìm thấy thông tin nhóm.')),
+        child: Center(child: Text('Bạn không còn trong nhóm này.')),
       );
     }
 
